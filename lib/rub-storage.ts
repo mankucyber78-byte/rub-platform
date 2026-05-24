@@ -4,6 +4,9 @@ export const RUB_USER_KEY = "rub-user";
 export const RUB_PENDING_URL_KEY = "rub-pending-url";
 export const RUB_VERIFIED_KEY = "rub-verified";
 export const RUB_CONNECTED_KEY = "rub-connected";
+export const RUB_PLATFORM_KEY = "rub-platform";
+
+export type RubPlatform = "wordpress" | "html";
 
 export type RubUser = {
   email: string;
@@ -106,6 +109,18 @@ export function getStoredAnalysis<T>(): T | null {
 export function displayUrl(url: string): string {
   if (!url) return "yourwebsite.com";
   return url.replace(/^https?:\/\//, "").replace(/\/$/, "");
+}
+
+export function setStoredPlatform(platform: RubPlatform) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(RUB_PLATFORM_KEY, platform);
+}
+
+export function getStoredPlatform(): RubPlatform | null {
+  if (typeof window === "undefined") return null;
+  const v = localStorage.getItem(RUB_PLATFORM_KEY);
+  if (v === "wordpress" || v === "html") return v;
+  return null;
 }
 
 export function normalizeUrl(input: string): string {
