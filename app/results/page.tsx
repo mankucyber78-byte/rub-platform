@@ -424,6 +424,7 @@ function BeforeAfterSlider({
       <div
         ref={containerRef}
         className="relative aspect-[4/3] w-full cursor-ew-resize select-none overflow-hidden rounded-2xl border border-white/[0.08] sm:aspect-[16/9]"
+        style={{ touchAction: "pan-y" }}
         onMouseDown={(e) => {
           dragging.current = true;
           updatePosition(e.clientX);
@@ -446,8 +447,8 @@ function BeforeAfterSlider({
           className="absolute top-0 bottom-0 z-10 w-0.5 bg-[#C9A84C] shadow-[0_0_16px_rgba(201,168,76,0.7)]"
           style={{ left: `${position}%` }}
         >
-          <div className="absolute top-1/2 left-1/2 flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-[#C9A84C] bg-[#080B10] shadow-xl">
-            <span className="text-[10px] font-bold text-[#C9A84C]">◀ ▶</span>
+          <div className="absolute top-1/2 left-1/2 flex h-12 w-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-[#C9A84C] bg-[#080B10] shadow-xl sm:h-11 sm:w-11">
+            <span className="text-xs font-bold text-[#C9A84C]">◀▶</span>
           </div>
         </div>
         <span className="pointer-events-none absolute top-3 left-3 rounded bg-black/60 px-2.5 py-1 text-[10px] font-bold tracking-wider text-white/80 uppercase">
@@ -837,7 +838,7 @@ function ResultsContent() {
                 <button
                   type="button"
                   onClick={scrollToUpload}
-                  className="mt-4 text-left text-sm font-semibold text-[#C9A84C] hover:underline"
+                  className="mt-4 inline-flex min-h-[44px] items-center text-left text-sm font-semibold text-[#C9A84C] hover:underline"
                 >
                   Upload Now →
                 </button>

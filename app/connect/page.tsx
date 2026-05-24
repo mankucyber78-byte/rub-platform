@@ -22,38 +22,101 @@ import {
 
 const BG = "#080B10";
 
-const CONNECT_MESSAGES = [
-  "Connecting...",
-  "Testing your connection...",
-  "Encrypting credentials...",
-];
+const CONNECT_PHASES = [
+  "Testing connection...",
+  "Verifying credentials...",
+  "Securing your password...",
+] as const;
 
 export default function ConnectPage() {
   const router = useRouter();
   const [domain, setDomain] = useState("yourwebsite.com");
+  const [siteUrl, setSiteUrl] = useState("");
   const [step, setStep] = useState(1);
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [connecting, setConnecting] = useState(false);
+  const [connectPhase, setConnectPhase] = useState(0);
   const [connectMsg, setConnectMsg] = useState("");
   const [success, setSuccess] = useState(false);
+  const [error, setError] = useState("");
   const [helpOpen, setHelpOpen] = useState(false);
 
   useEffect(() => {
     const url = getStoredUrl();
     if (url) {
+      setSiteUrl(url);
       setDomain(displayUrl(url));
     }
   }, []);
 
-  const connect = async () => {
-    setConnecting(true);
-    for (const msg of CONNECT_MESSAGES) {
-      setConnectMsg(msg);
-      await new Promise((r) => setTimeout(r, 1000));
+  // Advance through the loading phases shown while the API call runs
+  const runPhaseMessages = async () => {
+    for (let i = 0; i < CONNECT_PHASES.length; i++) {
+      setConnectPhase(i);
+      setConnectMsg(CONNECT_PHASES[i]);
+      // Hold each phase message for ~1.2 s so the user can read it
+      await new Promise((r) => setTimeout(r, 1200));
     }
-    setConnected(true);
+  };
+
+  const connect = async () => {
+    setError("");
+
+    if (!username.trim()) {
+      setError("Please enter your WordPress username.");
+      return;
+    }
+    if (!password.trim()) {
+      setError("Please enter your Application Password.");
+      return;
+    }
+
+    setConnecting(true);
+    setConnectPhase(0);
+    setConnectMsg(CONNECT_PHASES[0]);
+
+    // Run phase messages in parallel with the real API call
+    const phasePromise = runPhaseMessages();
+
+    let apiResult: { success: boolean; error?: string; websiteTitle?: string } | null =
+      null;
+
+    try {
+      const res = await fetch("/api/connect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url: siteUrl || `https://${domain}`,
+          username: username.trim(),
+          password: password.trim(),
+        }),
+      });
+
+      apiResult = (await res.json()) as typeof apiResult;
+    } catch {
+      // Network error — treat as connection failure
+      apiResult = {
+        success: false,
+        error: "Could not reach the server. Please check your internet connection.",
+      };
+    }
+
+    // Wait for phase messages to finish (at least show them all)
+    await phasePromise;
+
     setConnecting(false);
+
+    if (!apiResult?.success) {
+      setError(
+        apiResult?.error ?? "Connection failed. Please check your details and try again."
+      );
+      return;
+    }
+
+    // Mark connected in localStorage so /analyze guard passes
+    setConnected(true);
     setSuccess(true);
     setTimeout(() => router.push("/analyze"), 2000);
   };
@@ -72,6 +135,7 @@ export default function ConnectPage() {
           <StepDots total={4} current={step} />
 
           <AnimatePresence mode="wait">
+            {/* ── Step 1 — Log into WP Admin ── */}
             {step === 1 && (
               <motion.div
                 key="s1"
@@ -106,28 +170,34 @@ export default function ConnectPage() {
                 </p>
 
                 <div className="relative mt-8 space-y-3">
-                  <GoldPrimaryButton onClick={() => setStep(2)}>I am logged in →</GoldPrimaryButton>
-                  <OutlineButton onClick={() => setHelpOpen(!helpOpen)}>I need help</OutlineButton>
+                  <GoldPrimaryButton onClick={() => setStep(2)}>
+                    I am logged in →
+                  </GoldPrimaryButton>
+                  <OutlineButton onClick={() => setHelpOpen(!helpOpen)}>
+                    I need help
+                  </OutlineButton>
                   {helpOpen && (
                     <motion.p
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       className="rounded-lg border border-[#C9A84C]/20 bg-[#C9A84C]/5 p-3 text-xs text-white/60"
                     >
-                      Open a new tab, go to {domain}/wp-admin, and sign in with your WordPress
-                      username and password.
+                      Open a new tab, go to {domain}/wp-admin, and sign in with your
+                      WordPress username and password.
                     </motion.p>
                   )}
                 </div>
               </motion.div>
             )}
 
+            {/* ── Step 2 — Go to Profile ── */}
             {step === 2 && (
               <motion.div
                 key="s2"
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
+                transition={{ ease: EASE }}
               >
                 <p className="text-sm text-[#C9A84C]">Step 2 of 4</p>
                 <h1 className="rub-font-display mt-2 text-2xl font-bold sm:text-3xl">
@@ -151,7 +221,9 @@ export default function ConnectPage() {
                 </div>
 
                 <div className="mt-8 space-y-3">
-                  <GoldPrimaryButton onClick={() => setStep(3)}>I found my profile →</GoldPrimaryButton>
+                  <GoldPrimaryButton onClick={() => setStep(3)}>
+                    I found my profile →
+                  </GoldPrimaryButton>
                   <button
                     type="button"
                     onClick={() => setStep(1)}
@@ -163,20 +235,28 @@ export default function ConnectPage() {
               </motion.div>
             )}
 
+            {/* ── Step 3 — Create Application Password ── */}
             {step === 3 && (
               <motion.div
                 key="s3"
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
+                transition={{ ease: EASE }}
               >
                 <p className="text-sm text-[#C9A84C]">Step 3 of 4</p>
                 <h1 className="rub-font-display mt-2 text-2xl font-bold sm:text-3xl">
                   Create an Application Password
                 </h1>
                 <p className="mt-3 text-sm text-white/55">
-                  Scroll down to Application Passwords. Type RUB in the name box, then click Add
-                  New Application Password.
+                  Scroll down to{" "}
+                  <span className="font-semibold text-white">Application Passwords</span>.
+                  Type <span className="font-mono text-[#C9A84C]">RUB</span> in the name
+                  box, then click{" "}
+                  <span className="font-semibold text-white">
+                    Add New Application Password
+                  </span>
+                  .
                 </p>
 
                 <div className="relative mt-8 overflow-hidden rounded-2xl border border-white/[0.08] bg-[#1a1f26] p-6">
@@ -191,9 +271,14 @@ export default function ConnectPage() {
                   <div className="mt-3 h-10 rounded border border-white/10 bg-black/20" />
                 </div>
 
+                <p className="mt-5 text-sm text-white/45">
+                  WordPress will show you a long password — copy it, you&apos;ll need it
+                  in the next step.
+                </p>
+
                 <div className="mt-8 space-y-3">
                   <GoldPrimaryButton onClick={() => setStep(4)}>
-                    I created the password →
+                    I have my password →
                   </GoldPrimaryButton>
                   <button
                     type="button"
@@ -206,48 +291,138 @@ export default function ConnectPage() {
               </motion.div>
             )}
 
+            {/* ── Step 4 — Enter credentials ── */}
             {step === 4 && (
               <motion.div
                 key="s4"
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
+                transition={{ ease: EASE }}
               >
                 <p className="text-sm text-[#C9A84C]">Step 4 of 4</p>
                 <h1 className="rub-font-display mt-2 text-2xl font-bold sm:text-3xl">
-                  Paste your password here
+                  Enter your credentials
                 </h1>
                 <p className="mt-3 text-sm text-white/55">
-                  WordPress showed you a password. Copy it and paste it below.
+                  Enter your WordPress admin username and the Application Password you
+                  just created.
                 </p>
 
-                <div className="relative mt-8">
-                  <span className="absolute top-1/2 left-4 -translate-y-1/2 text-white/35">🔒</span>
-                  <input
-                    type={showPass ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="xxxx xxxx xxxx xxxx xxxx"
-                    className="rub-input w-full rounded-xl py-4 pr-12 pl-11 font-mono text-white placeholder:text-white/25"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPass(!showPass)}
-                    className="absolute top-1/2 right-4 -translate-y-1/2 text-white/40"
-                  >
-                    {showPass ? "🙈" : "👁"}
-                  </button>
+                <div className="mt-8 space-y-4">
+                  {/* Username */}
+                  <div className="relative">
+                    <span className="absolute top-1/2 left-4 -translate-y-1/2 text-white/35">
+                      👤
+                    </span>
+                    <input
+                      type="text"
+                      value={username}
+                      onChange={(e) => {
+                        setUsername(e.target.value);
+                        setError("");
+                      }}
+                      placeholder="Your WordPress username"
+                      autoComplete="username"
+                      className="rub-input w-full rounded-xl py-4 pr-4 pl-11 text-white placeholder:text-white/25"
+                    />
+                  </div>
+                  <p className="text-xs text-white/35">
+                    This is the username you use to log into{" "}
+                    <span className="font-mono text-white/50">{domain}/wp-admin</span>
+                  </p>
+
+                  {/* Application Password */}
+                  <div className="relative mt-2">
+                    <span className="absolute top-1/2 left-4 -translate-y-1/2 text-white/35">
+                      🔒
+                    </span>
+                    <input
+                      type={showPass ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => {
+                        setPassword(e.target.value);
+                        setError("");
+                      }}
+                      placeholder="xxxx xxxx xxxx xxxx xxxx"
+                      autoComplete="new-password"
+                      className="rub-input w-full rounded-xl py-4 pr-12 pl-11 font-mono text-white placeholder:text-white/25"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPass(!showPass)}
+                      className="absolute top-1/2 right-4 -translate-y-1/2 text-white/40 hover:text-white/70"
+                      aria-label={showPass ? "Hide password" : "Show password"}
+                    >
+                      {showPass ? "🙈" : "👁"}
+                    </button>
+                  </div>
+                  <p className="text-xs text-white/35">
+                    The Application Password from WordPress — looks like{" "}
+                    <span className="font-mono">xxxx xxxx xxxx xxxx xxxx</span>
+                  </p>
                 </div>
 
+                {/* Error message */}
+                <AnimatePresence>
+                  {error && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -6 }}
+                      className="mt-5 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3"
+                    >
+                      <p className="text-sm leading-relaxed text-red-400">{error}</p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Security note */}
                 <div className="mt-6 rounded-xl border-l-4 border-[#C9A84C] bg-white/[0.03] p-4">
                   <p className="flex items-start gap-2 text-sm text-white/60">
                     <span>🔒</span>
                     <span>
-                      Your password is encrypted instantly. Even RUB staff cannot see it. You can
-                      revoke access anytime from your WordPress dashboard.
+                      Your password is AES-256 encrypted instantly. Even RUB staff cannot
+                      see it. You can revoke access anytime from your WordPress dashboard.
                     </span>
                   </p>
                 </div>
+
+                {/* Loading phases indicator */}
+                {connecting && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="mt-6 space-y-2"
+                  >
+                    {CONNECT_PHASES.map((phase, i) => (
+                      <div key={phase} className="flex items-center gap-2 text-xs">
+                        <span
+                          className={
+                            i < connectPhase
+                              ? "text-emerald-400"
+                              : i === connectPhase
+                                ? "text-[#C9A84C]"
+                                : "text-white/20"
+                          }
+                        >
+                          {i < connectPhase ? "✅" : i === connectPhase ? "⏳" : "○"}
+                        </span>
+                        <span
+                          className={
+                            i < connectPhase
+                              ? "text-emerald-400"
+                              : i === connectPhase
+                                ? "text-white"
+                                : "text-white/20"
+                          }
+                        >
+                          {phase}
+                        </span>
+                      </div>
+                    ))}
+                  </motion.div>
+                )}
 
                 <div className="mt-8 space-y-3">
                   <GoldPrimaryButton loading={connecting} onClick={connect}>
@@ -262,7 +437,8 @@ export default function ConnectPage() {
                   <button
                     type="button"
                     onClick={() => setStep(3)}
-                    className="w-full text-center text-sm text-white/40 hover:text-[#C9A84C]"
+                    disabled={connecting}
+                    className="w-full text-center text-sm text-white/40 hover:text-[#C9A84C] disabled:opacity-40"
                   >
                     Go back
                   </button>
@@ -271,6 +447,7 @@ export default function ConnectPage() {
             )}
           </AnimatePresence>
 
+          {/* Skip option */}
           <p className="mt-12 text-center text-sm text-white/40">
             Not using WordPress?{" "}
             <button

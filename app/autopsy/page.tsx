@@ -572,7 +572,7 @@ export default function AutopsyPage() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.35, duration: 0.5 }}
-              className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4"
+              className="mt-8 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4"
             >
               {TRUST_BADGES.map((item) => (
                 <span
@@ -649,13 +649,13 @@ export default function AutopsyPage() {
                   </h2>
                 </FadeUp>
 
-                <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="grid grid-cols-2 gap-4 sm:gap-6 lg:grid-cols-4">
                   {WHAT_YOU_GET.map((item, i) => (
                     <FadeUp key={item.title} delay={i * 0.08}>
                       <motion.div
                         whileHover={{ y: -4 }}
                         transition={{ duration: 0.3, ease: EASE }}
-                        className="flex h-full min-h-[220px] flex-col rounded-2xl border border-[rgba(201,168,76,0.2)] bg-[rgba(201,168,76,0.05)] p-6"
+                        className="flex h-full flex-col rounded-2xl border border-[rgba(201,168,76,0.2)] bg-[rgba(201,168,76,0.05)] p-4 sm:p-6"
                       >
                         <span className="text-4xl" aria-hidden>
                           {item.emoji}

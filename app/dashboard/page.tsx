@@ -385,7 +385,7 @@ export default function DashboardPage() {
         </section>
 
         <FadeUp className="mt-10">
-          <div className="relative overflow-hidden rounded-2xl border border-[#C9A84C]/20 border-l-4 border-l-[#C9A84C] bg-[rgba(201,168,76,0.08)] p-8 sm:p-10">
+          <div className="relative overflow-hidden rounded-2xl border border-[#C9A84C]/20 bg-[rgba(201,168,76,0.08)] p-6 pl-8 sm:p-10 sm:pl-12" style={{ borderLeft: "4px solid #C9A84C" }}>
             <motion.span
               animate={{ scale: [1, 1.14, 1] }}
               transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}

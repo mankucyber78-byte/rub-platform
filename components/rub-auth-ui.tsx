@@ -29,8 +29,8 @@ export function AuthBackground() {
 
 export function FlowProgressBar({ currentStep }: { currentStep: number }) {
   return (
-    <div className="border-b border-white/[0.06] bg-[#080B10]/90 px-4 py-4 backdrop-blur-xl">
-      <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-center gap-x-2 gap-y-2 sm:gap-x-3">
+    <div className="sticky top-0 z-40 border-b border-white/[0.06] bg-[#080B10]/90 px-4 py-3 backdrop-blur-xl sm:py-4">
+      <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-center gap-x-1.5 gap-y-1.5 sm:gap-x-3 sm:gap-y-2">
         {FLOW_STEPS.map((label, i) => {
           const step = i + 1;
           const done = step < currentStep;
@@ -281,8 +281,10 @@ export function AuthSplitLayout({
       <div className="relative min-h-screen text-white" style={{ backgroundColor: BG }}>
         <AuthBackground />
         <div className="relative z-10 mx-auto grid max-w-6xl gap-10 px-4 py-10 lg:grid-cols-2 lg:items-center lg:gap-16 lg:px-8 lg:py-16">
-          <AuthMarketingPanel />
-          <div>{children}</div>
+          <div className="hidden lg:block">
+            <AuthMarketingPanel />
+          </div>
+          <div className="w-full">{children}</div>
         </div>
       </div>
     </PageTransition>

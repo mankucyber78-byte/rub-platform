@@ -25,7 +25,7 @@ export const CHARITY_CAUSES = [
 ] as const;
 
 const CARD_SHELL =
-  "relative flex h-full min-h-[320px] flex-col rounded-2xl border border-[rgba(201,168,76,0.2)] bg-[rgba(201,168,76,0.05)] p-8 shadow-none transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:border-[#C9A84C] group-hover:shadow-[0_14px_52px_rgba(201,168,76,0.38)]";
+  "relative flex h-full flex-col rounded-2xl border border-[rgba(201,168,76,0.2)] bg-[rgba(201,168,76,0.05)] p-6 shadow-none transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:border-[#C9A84C] group-hover:shadow-[0_14px_52px_rgba(201,168,76,0.38)] sm:p-8";
 
 function CharityCauseCard({
   cause,
@@ -65,9 +65,9 @@ export function CharityCauseGrid() {
         </p>
       </FadeUp>
 
-      <div className="grid auto-rows-fr grid-cols-1 gap-6 sm:grid-cols-3 sm:gap-6">
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-3 sm:gap-6">
         {CHARITY_CAUSES.map((cause, i) => (
-          <FadeUp key={cause.title} delay={i * 0.08} className="h-full min-h-[320px]">
+          <FadeUp key={cause.title} delay={i * 0.08} className="h-full">
             <CharityCauseCard cause={cause} />
           </FadeUp>
         ))}

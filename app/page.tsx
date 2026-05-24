@@ -422,7 +422,7 @@ export default function Home() {
                 onClick={handleAnalyze}
                 disabled={analyzing}
                 whileTap={{ scale: 0.98 }}
-                className="rub-btn-gold flex shrink-0 items-center justify-center gap-2 rounded-xl px-8 py-4 text-base"
+                className="rub-btn-gold flex w-full items-center justify-center gap-2 rounded-xl px-8 py-4 text-base sm:w-auto sm:shrink-0"
               >
                 {analyzing && <Spinner />}
                 Analyze My Website
@@ -496,7 +496,7 @@ export default function Home() {
             <SectionHeading title="10 AI Agents Work For You" subtitle="Specialized AI working in parallel for your business" />
           </FadeUp>
 
-          <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
             {AGENTS.map((agent, i) => (
               <FadeUp key={agent.name} delay={i * 0.05}>
                 <motion.div
@@ -639,7 +639,7 @@ export default function Home() {
           </FadeUp>
 
           <FadeUp>
-            <GlassCard className="px-6">
+            <GlassCard className="px-4 sm:px-6">
               {FAQS.map((faq) => (
                 <FAQItem key={faq.q} q={faq.q} a={faq.a} />
               ))}

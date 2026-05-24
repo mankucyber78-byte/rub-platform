@@ -40,6 +40,11 @@ export default function SignInPage() {
 
   return (
     <AuthSplitLayout>
+      <div className="mb-6 lg:hidden">
+        <Link href="/" className="rub-font-display text-2xl font-bold text-[#C9A84C]">
+          RUB
+        </Link>
+      </div>
       <AuthFormCard>
         <h1 className="rub-font-display text-2xl font-bold text-white sm:text-3xl">
           Welcome back

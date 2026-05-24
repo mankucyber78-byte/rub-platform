@@ -31,6 +31,26 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+  /* Prevent iOS tap highlight flash */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Smooth momentum scrolling on iOS for scroll containers */
+.overflow-y-auto,
+.overflow-y-scroll {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Ensure CTA buttons have comfortable touch targets */
+.rub-btn-gold {
+  min-height: 48px;
+}
+
+/* Prevent double-tap zoom on all buttons and links */
+button,
+a {
+  touch-action: manipulation;
 }
 
 ::selection {

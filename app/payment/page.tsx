@@ -70,7 +70,7 @@ function PaymentForm({
   };
 
   return (
-    <div className="lg:grid lg:grid-cols-2 lg:gap-10 xl:gap-14">
+    <div className="grid grid-cols-1 gap-10 lg:grid-cols-2 lg:gap-10 xl:gap-14">
       {/* ORDER SUMMARY */}
       <div className="lg:pr-4">
         <h1 className="text-2xl font-bold text-white sm:text-3xl">

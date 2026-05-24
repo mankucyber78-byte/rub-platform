@@ -588,7 +588,7 @@ function AnalyzeContent() {
             </p>
             <div
               ref={feedRef}
-              className="rub-terminal rub-scanlines relative max-h-[150px] overflow-y-auto rounded-lg p-3 scroll-smooth sm:p-4"
+              className="rub-terminal rub-scanlines relative max-h-[160px] overflow-y-auto rounded-lg p-3 scroll-smooth sm:max-h-[200px] sm:p-4"
             >
               <AnimatePresence initial={false}>
                 {feed.map((msg, i) => (
