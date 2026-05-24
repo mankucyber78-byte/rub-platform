@@ -228,7 +228,7 @@ export default function Home() {
     >
       <header className="fixed top-0 right-0 left-0 z-50 border-b border-white/5 bg-[#0D1117]/70 backdrop-blur-xl">
         <nav className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
-          <a href="#" className="text-xl font-bold tracking-tight text-[#C9A84C]">
+          <a href="/" className="text-xl font-bold tracking-tight text-[#C9A84C]">
             RUB
           </a>
 
@@ -403,7 +403,7 @@ export default function Home() {
             <div className="flex flex-col gap-3 sm:flex-row">
               <div className="w-full flex-1">
                 <motion.input
-                  type="url"
+                  type="text"
                   value={url}
                   animate={shakeInput ? { x: [0, -10, 10, -10, 10, 0] } : { x: 0 }}
                   transition={{ duration: 0.45 }}
@@ -689,13 +689,13 @@ export default function Home() {
           <div className="mx-auto flex max-w-6xl flex-col items-center gap-6 sm:flex-row sm:justify-between">
             <span className="text-2xl font-bold text-[#C9A84C]">RUB</span>
             <nav className="flex flex-wrap justify-center gap-6 text-sm text-white/50">
-              <a href="#" className="hover:text-[#C9A84C]">
+              <a href="/privacy" className="hover:text-[#C9A84C]">
                 Privacy
               </a>
-              <a href="#" className="hover:text-[#C9A84C]">
+              <a href="/terms" className="hover:text-[#C9A84C]">
                 Terms
               </a>
-              <a href="#" className="hover:text-[#C9A84C]">
+              <a href="/contact" className="hover:text-[#C9A84C]">
                 Contact
               </a>
             </nav>
