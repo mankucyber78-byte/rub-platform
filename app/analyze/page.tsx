@@ -3,75 +3,97 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { displayUrl, getStoredUrl } from "@/lib/rub-storage";
+import {
+  displayUrl,
+  getStoredUrl,
+  getStoredUser,
+  isConnected,
+  isVerified,
+  normalizeUrl,
+  setStoredAnalysis,
+} from "@/lib/rub-storage";
+import type { AgentName } from "@/lib/agents/types";
+import {
+  buildMockFeedSteps,
+  generateMockAnalysisResult,
+  MOCK_AGENT_DURATIONS_MS,
+  MOCK_AGENT_ORDER,
+  MOCK_TOTAL_DURATION_MS,
+  sleep,
+} from "@/lib/mock-analysis";
+import {
+  GoldConfetti,
+  GoldParticles,
+  SkeletonPage,
+} from "@/components/rub-premium";
 
-const DARK = "#0D1117";
-const GOLD = "#C9A84C";
-const TICK_MS = 40;
-const AGENT_MS = 3000;
-const PROGRESS_STEP = 100 / (AGENT_MS / TICK_MS);
-const COUNTDOWN_START = 10 * 60;
+const BG = "#080B10";
+const CARD = "#0D1117";
+const EASE = [0.22, 1, 0.36, 1] as const;
+
+const AGENT_KEYS: AgentName[] = [
+  "scout",
+  "einstein",
+  "critic",
+  "seoGuy",
+  "writer",
+  "picasso",
+  "ansel",
+  "spielberg",
+  "rex",
+  "publisher",
+];
 
 const AGENTS = [
   {
     emoji: "🔍",
     name: "Scout",
-    description: "Scanning all pages and reading your code",
-    feed: "Scout found 8 pages to analyze...",
+    lines: ["Scanning all pages...", "Reading HTML structure...", "Mapping site architecture..."],
   },
   {
     emoji: "🧠",
     name: "Einstein",
-    description: "Understanding your business and audience",
-    feed: "Einstein detected: Restaurant business",
+    lines: ["Analyzing business type...", "Identifying target audience...", "Mapping brand personality..."],
   },
   {
     emoji: "👁",
     name: "Critic",
-    description: "Grading your current design quality",
-    feed: "Critic found 12 design issues...",
+    lines: ["Grading design quality...", "Auditing typography...", "Scoring mobile readiness..."],
   },
   {
     emoji: "📈",
     name: "SEO Guy",
-    description: "Checking how Google sees your website",
-    feed: "SEO Guy found 8 ranking problems...",
+    lines: ["Checking Google signals...", "Auditing meta tags...", "Finding ranking gaps..."],
   },
   {
     emoji: "✍️",
     name: "Writer",
-    description: "Rewriting your content to convert better",
-    feed: "Writer is rewriting your homepage copy...",
+    lines: ["Reviewing homepage copy...", "Rewriting hero headline...", "Strengthening CTAs..."],
   },
   {
     emoji: "🎨",
     name: "Picasso",
-    description: "Generating your unique new design",
-    feed: "Picasso is creating your color palette...",
+    lines: ["Building color palette...", "Designing hero layout...", "Crafting premium components..."],
   },
   {
     emoji: "📸",
     name: "Ansel",
-    description: "Enhancing and placing your photos",
-    feed: "Ansel enhanced 3 photos...",
+    lines: ["Scanning image assets...", "Enhancing photo quality...", "Placing hero imagery..."],
   },
   {
     emoji: "🎬",
     name: "Spielberg",
-    description: "Optimizing and placing your videos",
-    feed: "Spielberg optimized 2 videos...",
+    lines: ["Locating video assets...", "Optimizing for mobile...", "Placing background loops..."],
   },
   {
     emoji: "✅",
     name: "Rex",
-    description: "Running quality checks on everything",
-    feed: "Rex passed all quality checks...",
+    lines: ["Running quality checks...", "Validating consistency...", "Verifying mobile breakpoints..."],
   },
   {
     emoji: "🚀",
     name: "Publisher",
-    description: "Preparing your design for publishing",
-    feed: "Publisher prepared your live preview...",
+    lines: ["Packaging CSS bundle...", "Preparing live preview...", "Staging deployment..."],
   },
 ] as const;
 
@@ -84,31 +106,35 @@ function formatCountdown(totalSeconds: number) {
   return `${m}:${sec.toString().padStart(2, "0")}`;
 }
 
-function BackgroundEffects() {
+function TypewriterStatus({ text }: { text: string }) {
+  const [display, setDisplay] = useState("");
+
+  useEffect(() => {
+    if (!text) {
+      setDisplay("");
+      return;
+    }
+    setDisplay("");
+    let i = 0;
+    const id = setInterval(() => {
+      i += 1;
+      setDisplay(text.slice(0, i));
+      if (i >= text.length) clearInterval(id);
+    }, 22);
+    return () => clearInterval(id);
+  }, [text]);
+
   return (
-    <div className="pointer-events-none fixed inset-0 overflow-hidden">
-      <div
-        className="absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(ellipse 80% 50% at 50% 0%, rgba(201,168,76,0.14) 0%, transparent 60%)",
-        }}
-      />
-      {Array.from({ length: 16 }).map((_, i) => (
-        <motion.div
-          key={i}
-          className="absolute h-1 w-1 rounded-full bg-[#C9A84C]/50"
-          style={{ left: `${(i * 13 + 5) % 95}%`, bottom: "10%" }}
-          animate={{ y: [0, -500], opacity: [0, 0.7, 0] }}
-          transition={{
-            duration: 5 + (i % 4),
-            repeat: Infinity,
-            delay: i * 0.3,
-            ease: "linear",
-          }}
+    <span className="min-h-[2.5em] text-[10px] leading-snug text-[#C9A84C]/90 sm:text-xs">
+      {display}
+      {display.length < text.length && (
+        <motion.span
+          animate={{ opacity: [1, 0] }}
+          transition={{ duration: 0.5, repeat: Infinity }}
+          className="ml-0.5 inline-block h-3 w-0.5 bg-[#C9A84C]"
         />
-      ))}
-    </div>
+      )}
+    </span>
   );
 }
 
@@ -116,10 +142,12 @@ function AgentCard({
   agent,
   status,
   progress,
+  statusText,
 }: {
   agent: (typeof AGENTS)[number];
   status: AgentStatus;
   progress: number;
+  statusText: string;
 }) {
   const isWaiting = status === "waiting";
   const isWorking = status === "working";
@@ -128,229 +156,344 @@ function AgentCard({
   return (
     <motion.div
       layout
-      animate={
-        isWorking
-          ? {
-              boxShadow: [
-                "0 0 0px rgba(201,168,76,0)",
-                "0 0 28px rgba(201,168,76,0.35)",
-                "0 0 0px rgba(201,168,76,0)",
-              ],
-            }
-          : {}
-      }
-      transition={
-        isWorking
-          ? { duration: 1.4, repeat: Infinity, ease: "easeInOut" }
-          : { duration: 0.3 }
-      }
-      className={`flex flex-col rounded-2xl border p-4 text-center transition-colors sm:p-5 ${
-        isWorking
-          ? "border-[#C9A84C]/60 bg-[#C9A84C]/10"
-          : isDone
-            ? "border-emerald-500/30 bg-emerald-500/5"
-            : "border-white/10 bg-white/[0.02] opacity-45"
+      animate={{
+        y: isWorking ? -4 : 0,
+        opacity: isDone ? 0.72 : 1,
+      }}
+      transition={{ duration: 0.35, ease: EASE }}
+      className={`relative flex flex-col rounded-xl border p-3.5 sm:p-4 ${
+        isWaiting
+          ? "border-white/[0.05]"
+          : isWorking
+            ? "rub-agent-pulse border-[#C9A84C] bg-[#C9A84C]/[0.08] shadow-[0_0_24px_rgba(201,168,76,0.25)]"
+            : "border-emerald-500/25 bg-[#0D1117]"
       }`}
+      style={{ backgroundColor: isWaiting || isDone ? CARD : undefined }}
     >
-      <span
-        className={`text-4xl sm:text-5xl ${isWorking ? "animate-pulse" : ""}`}
+      {isDone && (
+        <motion.div
+          initial={{ scale: 0, rotate: -90 }}
+          animate={{ scale: 1, rotate: 0 }}
+          transition={{ type: "spring", stiffness: 400, damping: 18 }}
+          className="absolute top-2.5 right-2.5 flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500 text-xs font-bold text-white shadow-lg shadow-emerald-500/30"
+        >
+          ✓
+        </motion.div>
+      )}
+
+      <motion.span
+        animate={isWorking ? { y: [0, -3, 0] } : {}}
+        transition={{ duration: 1.6, repeat: isWorking ? Infinity : 0, ease: "easeInOut" }}
+        className={`text-3xl sm:text-4xl ${isWaiting ? "opacity-40" : "opacity-100"}`}
         aria-hidden
       >
         {agent.emoji}
-      </span>
-
-      <p className="mt-3 text-sm font-bold text-[#C9A84C] sm:text-base">
-        {agent.name}
-      </p>
-      <p className="mt-1 line-clamp-2 text-[10px] leading-snug text-white/45 sm:text-xs">
-        {agent.description}
-      </p>
+      </motion.span>
 
       <p
-        className={`mt-3 text-[10px] font-medium sm:text-xs ${
-          isDone
-            ? "text-emerald-400"
+        className={`mt-2.5 text-sm font-semibold sm:text-base ${
+          isWaiting
+            ? "text-white/35"
             : isWorking
               ? "text-[#C9A84C]"
-              : "text-white/25"
+              : "text-white"
         }`}
       >
-        {isDone ? "Done ✅" : isWorking ? "Working..." : "Waiting"}
+        {agent.name}
       </p>
 
-      <div className="mt-3 flex justify-center">
-        {isDone ? (
-          <motion.span
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500 text-sm font-bold text-white"
-          >
-            ✓
-          </motion.span>
-        ) : (
-          <div className="h-8 w-8" />
+      <div className="mt-2 flex-1">
+        {isWaiting && (
+          <p className="text-[10px] text-white/25 sm:text-xs">Waiting...</p>
+        )}
+        {isWorking && <TypewriterStatus text={statusText || agent.lines[0]} />}
+        {isDone && (
+          <p className="text-[10px] font-medium text-emerald-400 sm:text-xs">Complete</p>
         )}
       </div>
 
-      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10">
+      <div className="mt-3 h-1 overflow-hidden rounded-full bg-white/[0.06]">
         <motion.div
           className={`h-full rounded-full ${
             isDone
               ? "bg-emerald-500"
-              : "bg-gradient-to-r from-[#C9A84C] to-[#e8c96a]"
+              : isWorking
+                ? "rub-progress-bar"
+                : "bg-white/10"
           }`}
           initial={false}
-          animate={{ width: `${isDone ? 100 : progress}%` }}
-          transition={{ duration: 0.08, ease: "linear" }}
+          animate={{ width: `${isDone ? 100 : isWaiting ? 0 : progress}%` }}
+          transition={{ duration: 0.25, ease: "easeOut" }}
         />
       </div>
     </motion.div>
   );
 }
 
-function SuccessScreen() {
+function SvgCheckmark() {
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[#0D1117]/95 px-4 backdrop-blur-md"
-    >
+    <svg viewBox="0 0 52 52" className="h-24 w-24 sm:h-28 sm:w-28">
+      <motion.circle
+        cx="26"
+        cy="26"
+        r="24"
+        fill="none"
+        stroke="#C9A84C"
+        strokeWidth="2"
+        initial={{ pathLength: 0, opacity: 0 }}
+        animate={{ pathLength: 1, opacity: 1 }}
+        transition={{ duration: 0.6, ease: EASE }}
+      />
+      <motion.path
+        fill="none"
+        stroke="#C9A84C"
+        strokeWidth="3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M14 27l8 8 16-18"
+        initial={{ pathLength: 0 }}
+        animate={{ pathLength: 1 }}
+        transition={{ duration: 0.5, delay: 0.45, ease: EASE }}
+      />
+    </svg>
+  );
+}
+
+function SuccessScreen({ onContinue }: { onContinue: () => void }) {
+  return (
+    <>
+      <GoldConfetti active />
       <motion.div
-        initial={{ scale: 0.85, opacity: 0, y: 30 }}
-        animate={{ scale: 1, opacity: 1, y: 0 }}
-        transition={{ type: "spring", stiffness: 220, damping: 20 }}
-        className="max-w-md rounded-3xl border border-[#C9A84C]/40 bg-[#0D1117] p-10 text-center shadow-[0_0_80px_rgba(201,168,76,0.2)]"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="fixed inset-0 z-50 flex items-center justify-center bg-[#080B10]/95 px-4 backdrop-blur-xl"
       >
         <motion.div
-          initial={{ scale: 0, rotate: -180 }}
-          animate={{ scale: 1, rotate: 0 }}
-          transition={{ type: "spring", stiffness: 200, damping: 14, delay: 0.1 }}
-          className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-[#C9A84C] text-5xl font-bold text-[#0D1117] shadow-lg shadow-[#C9A84C]/30"
+          initial={{ scale: 0.92, y: 20 }}
+          animate={{ scale: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: EASE }}
+          className="w-full max-w-md text-center"
         >
-          ✓
-        </motion.div>
+          <div className="mx-auto flex h-28 w-28 items-center justify-center rounded-full bg-[#C9A84C]/10">
+            <SvgCheckmark />
+          </div>
 
-        <motion.h2
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.25 }}
-          className="mt-8 text-2xl font-bold text-white sm:text-3xl"
-        >
-          Analysis Complete! 🎉
-        </motion.h2>
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.35 }}
-          className="mt-3 text-sm text-white/55 sm:text-base"
-        >
-          Your new website is ready to preview
-        </motion.p>
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
-          className="mt-6 text-sm text-[#C9A84C]"
-        >
-          Redirecting to your results...
-        </motion.p>
+          <motion.h2
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="rub-font-display mt-8 text-3xl font-bold text-white sm:text-4xl"
+          >
+            Analysis Complete!
+          </motion.h2>
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.45 }}
+            className="mt-3 text-base text-white/55"
+          >
+            Your new website is ready
+          </motion.p>
+
+          <motion.button
+            type="button"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.6 }}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={onContinue}
+            className="rub-btn-gold rub-btn-shimmer relative mt-10 w-full rounded-xl px-6 py-4 text-base font-bold sm:text-lg"
+          >
+            See My New Website
+          </motion.button>
+
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.75 }}
+            className="mt-5 text-xs text-white/35"
+          >
+            Redirecting automatically in 3 seconds...
+          </motion.p>
+        </motion.div>
       </motion.div>
-    </motion.div>
+    </>
+  );
+}
+
+function CommandCenterBackground() {
+  return (
+    <>
+      <div className="rub-command-grid pointer-events-none absolute inset-0" />
+      <div className="rub-radial-glow pointer-events-none absolute inset-0" />
+      <GoldParticles />
+    </>
   );
 }
 
 function AnalyzeContent() {
   const router = useRouter();
+  const routerRef = useRef(router);
+  routerRef.current = router;
+
   const [websiteUrl, setWebsiteUrl] = useState("");
-  const [progresses, setProgresses] = useState<number[]>(() =>
-    AGENTS.map(() => 0)
-  );
+  const [progresses, setProgresses] = useState<number[]>(() => AGENTS.map(() => 0));
   const [statuses, setStatuses] = useState<AgentStatus[]>(() =>
-    AGENTS.map((_, i) => (i === 0 ? "working" : "waiting"))
+    AGENTS.map(() => "waiting")
   );
-  const [countdown, setCountdown] = useState(COUNTDOWN_START);
-  const [feed, setFeed] = useState<string[]>(["🔍 Scout is starting analysis..."]);
+  const [statusTexts, setStatusTexts] = useState<string[]>(() => AGENTS.map(() => ""));
+  const [feed, setFeed] = useState<string[]>([]);
   const [agentsComplete, setAgentsComplete] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const feedRef = useRef<HTMLDivElement>(null);
-  const feedAddedRef = useRef<Set<number>>(new Set());
-  const simRef = useRef({
-    progresses: AGENTS.map(() => 0),
-    statuses: AGENTS.map((_, i) =>
-      (i === 0 ? "working" : "waiting") as AgentStatus
-    ),
-  });
+  const cancelledRef = useRef(false);
 
+  const completedAgents = statuses.filter((s) => s === "done").length;
+  const workingIdx = statuses.findIndex((s) => s === "working");
+  const activeFraction = workingIdx >= 0 ? progresses[workingIdx] / 100 : 0;
   const overallProgress =
-    progresses.reduce((a, b) => a + b, 0) / AGENTS.length;
+    ((completedAgents + activeFraction) / AGENTS.length) * 100;
 
-  const redirectedRef = useRef(false);
+  const countdownSeconds = Math.max(
+    0,
+    Math.ceil((MOCK_TOTAL_DURATION_MS * (1 - overallProgress / 100)) / 1000)
+  );
+
+  const agentIndex = (name: AgentName) => AGENT_KEYS.indexOf(name);
+
+  const patchAgent = (
+    name: AgentName,
+    patch: Partial<{ progress: number; status: AgentStatus; statusText: string }>
+  ) => {
+    const i = agentIndex(name);
+    if (i < 0) return;
+
+    if (patch.progress !== undefined) {
+      setProgresses((prev) => {
+        const next = [...prev];
+        next[i] = patch.progress!;
+        return next;
+      });
+    }
+    if (patch.status) {
+      setStatuses((prev) => {
+        const next = [...prev];
+        next[i] = patch.status!;
+        return next;
+      });
+    }
+    if (patch.statusText !== undefined) {
+      setStatusTexts((prev) => {
+        const next = [...prev];
+        next[i] = patch.statusText!;
+        return next;
+      });
+    }
+  };
 
   useEffect(() => {
-    setWebsiteUrl(displayUrl(getStoredUrl()));
+    cancelledRef.current = false;
+
+    const raw = getStoredUrl();
+    const url = normalizeUrl(raw);
+    if (!url) {
+      routerRef.current.replace("/");
+      return;
+    }
+    if (!getStoredUser()) {
+      routerRef.current.replace("/sign-up");
+      return;
+    }
+    if (!isVerified()) {
+      routerRef.current.replace("/verify");
+      return;
+    }
+    if (!isConnected()) {
+      routerRef.current.replace("/connect");
+      return;
+    }
+
+    const startAnalysis = async () => {
+      const domain = displayUrl(url);
+      const feedSteps = buildMockFeedSteps(domain);
+
+      setWebsiteUrl(domain);
+      setProgresses(AGENTS.map(() => 0));
+      setStatuses(AGENTS.map(() => "waiting"));
+      setStatusTexts(AGENTS.map(() => ""));
+      setFeed([`> Initializing 10 AI agents for ${domain}...`]);
+
+      await sleep(400);
+      if (cancelledRef.current) return;
+
+      for (const agentKey of MOCK_AGENT_ORDER) {
+        if (cancelledRef.current) return;
+
+        const i = agentIndex(agentKey);
+        const duration = MOCK_AGENT_DURATIONS_MS[agentKey];
+        const steps = feedSteps[agentKey];
+        const shown = new Set<number>();
+        const tickMs = 80;
+        const ticks = Math.max(1, Math.ceil(duration / tickMs));
+
+        patchAgent(agentKey, {
+          status: "working",
+          progress: 0,
+          statusText: AGENTS[i]?.lines[0] ?? "Working...",
+        });
+
+        setFeed((f) => [...f, `> ${AGENTS[i]?.name} agent started...`]);
+
+        for (let t = 0; t <= ticks; t++) {
+          if (cancelledRef.current) return;
+
+          const progress = Math.min(100, Math.round((t / ticks) * 100));
+          patchAgent(agentKey, { progress });
+
+          for (const step of steps) {
+            if (progress >= step.at && !shown.has(step.at)) {
+              shown.add(step.at);
+              setFeed((f) => [...f, `> ${step.message}`]);
+              patchAgent(agentKey, {
+                statusText: step.message.replace(/ ✅$/, ""),
+              });
+            }
+          }
+
+          if (t < ticks) await sleep(tickMs);
+        }
+
+        patchAgent(agentKey, { status: "done", progress: 100 });
+        setFeed((f) => [...f, `> ${AGENTS[i]?.name} complete ✓`]);
+        await sleep(120);
+      }
+
+      if (cancelledRef.current) return;
+
+      setStoredAnalysis(generateMockAnalysisResult(url));
+      setFeed((f) => [...f, "> All 10 agents finished — redesign ready ✓"]);
+      setAgentsComplete(true);
+    };
+
+    void startAnalysis();
+
+    return () => {
+      cancelledRef.current = true;
+    };
   }, []);
 
   useEffect(() => {
     if (!agentsComplete) return;
-    const t1 = setTimeout(() => setShowSuccess(true), 1000);
+    const t1 = setTimeout(() => setShowSuccess(true), 800);
     return () => clearTimeout(t1);
   }, [agentsComplete]);
 
   useEffect(() => {
-    if (!showSuccess || redirectedRef.current) return;
-    redirectedRef.current = true;
-    const timer = setTimeout(() => router.push("/results"), 2000);
+    if (!showSuccess) return;
+    const timer = setTimeout(() => router.push("/results"), 3000);
     return () => clearTimeout(timer);
   }, [showSuccess, router]);
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCountdown((c) => Math.max(0, c - 1));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    if (agentsComplete) return;
-
-    const interval = setInterval(() => {
-      const { progresses: prog, statuses: stat } = simRef.current;
-
-      for (let i = 0; i < AGENTS.length; i++) {
-        if (stat[i] === "working") {
-          prog[i] = Math.min(prog[i] + PROGRESS_STEP, 100);
-          if (prog[i] >= 100) {
-            stat[i] = "done";
-            if (i + 1 < AGENTS.length && stat[i + 1] === "waiting") {
-              stat[i + 1] = "working";
-            }
-          }
-        }
-      }
-
-      for (let i = 0; i < AGENTS.length; i++) {
-        if (stat[i] === "working" && !feedAddedRef.current.has(i)) {
-          feedAddedRef.current.add(i);
-          setFeed((f) => [...f, AGENTS[i].feed]);
-        }
-      }
-
-      setProgresses([...prog]);
-      setStatuses([...stat]);
-
-      if (stat.every((s) => s === "done")) {
-        setAgentsComplete(true);
-        setFeed((f) => {
-          const doneMsg =
-            "✨ All 10 agents finished — your redesign is ready!";
-          return f.includes(doneMsg) ? f : [...f, doneMsg];
-        });
-        clearInterval(interval);
-      }
-    }, TICK_MS);
-
-    return () => clearInterval(interval);
-  }, [agentsComplete]);
 
   useEffect(() => {
     if (feedRef.current) {
@@ -360,105 +503,119 @@ function AnalyzeContent() {
 
   return (
     <div
-      className="relative min-h-screen font-sans text-white antialiased"
-      style={{ backgroundColor: DARK }}
+      className="relative min-h-screen text-white antialiased"
+      style={{ backgroundColor: BG }}
     >
-      <BackgroundEffects />
+      <CommandCenterBackground />
+
       <AnimatePresence>
-        {showSuccess && <SuccessScreen />}
+        {showSuccess && (
+          <SuccessScreen onContinue={() => router.push("/results")} />
+        )}
       </AnimatePresence>
 
-      <header className="relative z-10 border-b border-white/5 px-4 py-5 sm:px-6">
-        <div className="mx-auto max-w-6xl">
-          <span className="text-xl font-bold text-[#C9A84C]">RUB</span>
-          <p className="mt-3 text-lg font-semibold text-white sm:text-xl">
-            Analyzing{" "}
-            <span className="text-[#C9A84C]">{websiteUrl}</span>
-          </p>
+      <div className="relative z-10 mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-8">
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-6 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3"
+        >
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs sm:text-sm">
+            <span className="text-emerald-400">✅ Account verified</span>
+            <span className="text-emerald-400">✅ Website ownership confirmed</span>
+            <span className="text-emerald-400">
+              ✅ {websiteUrl || "yourwebsite.com"} connected
+            </span>
+          </div>
+          <p className="mt-2 text-xs text-[#C9A84C]/90 sm:text-sm">Starting your analysis...</p>
+        </motion.div>
 
-          <div className="mt-5 rounded-2xl border border-[#C9A84C]/20 bg-white/[0.04] p-4 sm:p-5">
-            <div className="flex items-end justify-between gap-4">
-              <div>
-                <p className="text-xs tracking-wide text-white/45 uppercase">
-                  Overall progress
-                </p>
-                <p className="text-3xl font-bold text-[#C9A84C] sm:text-4xl">
-                  {Math.round(overallProgress)}%
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="text-xs text-white/45">Time remaining</p>
-                <p className="font-mono text-2xl font-bold text-white sm:text-3xl">
-                  {formatCountdown(countdown)}
-                </p>
-              </div>
+        <header>
+          <span className="text-lg font-bold tracking-wide text-[#C9A84C] sm:text-xl">
+            RUB
+          </span>
+          <h1 className="mt-4 text-lg font-medium text-white/80 sm:text-xl">
+            Analyzing{" "}
+            <span className="font-semibold text-[#C9A84C]">
+              {websiteUrl || "yourwebsite.com"}
+            </span>
+          </h1>
+
+          <div className="mt-6">
+            <div className="mb-2 flex items-end justify-between gap-4">
+              <motion.span
+                key={Math.round(overallProgress)}
+                initial={{ opacity: 0.6, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-3xl font-bold text-[#C9A84C] sm:text-4xl"
+              >
+                {Math.round(overallProgress)}%
+              </motion.span>
+              <p className="text-right text-xs text-white/45 sm:text-sm">
+                Estimated time remaining:{" "}
+                <span className="font-mono text-sm font-semibold text-white/80 sm:text-base">
+                  {formatCountdown(countdownSeconds)}
+                </span>
+              </p>
             </div>
-            <div className="mt-4 h-3 overflow-hidden rounded-full bg-white/10">
+            <div className="h-2.5 overflow-hidden rounded-full bg-white/[0.06]">
               <motion.div
-                className="h-full rounded-full bg-gradient-to-r from-[#C9A84C] via-[#e8c96a] to-[#C9A84C]"
+                className="rub-progress-bar h-full rounded-full"
+                initial={false}
                 animate={{ width: `${overallProgress}%` }}
-                transition={{ duration: 0.12, ease: "linear" }}
+                transition={{ duration: 0.35, ease: "easeOut" }}
               />
             </div>
           </div>
-        </div>
-      </header>
+        </header>
 
-      <main className="relative z-10 mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5 md:gap-4">
-          {AGENTS.map((agent, i) => (
-            <AgentCard
-              key={agent.name}
-              agent={agent}
-              status={statuses[i]}
-              progress={progresses[i]}
-            />
-          ))}
-        </div>
+        <main className="mt-8">
+          <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
+            {AGENTS.map((agent, i) => (
+              <AgentCard
+                key={agent.name}
+                agent={agent}
+                status={statuses[i]}
+                progress={progresses[i]}
+                statusText={statusTexts[i]}
+              />
+            ))}
+          </div>
 
-        <div className="mt-10">
-          <div className="mb-3 flex items-center gap-2">
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#C9A84C] opacity-75" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-[#C9A84C]" />
-            </span>
-            <p className="text-sm font-semibold text-[#C9A84C]">Live feed</p>
+          <div className="mt-8">
+            <p className="mb-2 text-[10px] font-medium tracking-widest text-[#C9A84C]/70 uppercase sm:text-xs">
+              Live feed
+            </p>
+            <div
+              ref={feedRef}
+              className="rub-terminal rub-scanlines relative max-h-[150px] overflow-y-auto rounded-lg p-3 scroll-smooth sm:p-4"
+            >
+              <AnimatePresence initial={false}>
+                {feed.map((msg, i) => (
+                  <motion.p
+                    key={`${msg}-${i}`}
+                    initial={{ opacity: 0, x: -16 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.3, ease: EASE }}
+                    className="font-mono text-[11px] leading-relaxed text-emerald-400/85 sm:text-xs"
+                  >
+                    <span className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-[#C9A84C]" />
+                    {msg.replace(/^>\s*/, "")}
+                  </motion.p>
+                ))}
+              </AnimatePresence>
+            </div>
           </div>
-          <div
-            ref={feedRef}
-            className="h-40 overflow-y-auto rounded-2xl border border-white/10 bg-black/30 p-4 scroll-smooth sm:h-48"
-          >
-            <AnimatePresence initial={false}>
-              {feed.map((msg, i) => (
-                <motion.p
-                  key={`${msg}-${i}`}
-                  initial={{ opacity: 0, x: -8 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  className="border-b border-white/5 py-2 text-sm text-white/70 last:border-0"
-                >
-                  <span className="text-[#C9A84C]">›</span> {msg}
-                </motion.p>
-              ))}
-            </AnimatePresence>
-          </div>
-        </div>
-      </main>
+        </main>
+      </div>
     </div>
   );
 }
 
 function AnalyzeFallback() {
   return (
-    <div
-      className="flex min-h-screen flex-col items-center justify-center gap-3"
-      style={{ backgroundColor: DARK }}
-    >
-      <motion.div
-        className="h-10 w-10 rounded-full border-2 border-[#C9A84C] border-t-transparent"
-        animate={{ rotate: 360 }}
-        transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-      />
-      <p className="text-sm text-white/40">Initializing agents...</p>
+    <div style={{ backgroundColor: BG }}>
+      <SkeletonPage />
     </div>
   );
 }

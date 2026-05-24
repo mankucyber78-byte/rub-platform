@@ -8,6 +8,13 @@ import {
   Spinner,
   SuccessBanner,
 } from "@/components/rub-ui";
+import {
+  FadeUp,
+  GlassCard,
+  LiveDot,
+  PageTransition,
+  PremiumProgressBar,
+} from "@/components/rub-premium";
 import { displayUrl, getStoredUrl } from "@/lib/rub-storage";
 
 const DARK = "#0D1117";
@@ -40,28 +47,6 @@ const ACTIVITY = [
   { emoji: "🔍", text: "Website scanned", time: "Today 2:20 PM" },
 ];
 
-function FadeUp({
-  children,
-  className = "",
-  delay = 0,
-}: {
-  children: React.ReactNode;
-  className?: string;
-  delay?: number;
-}) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 24 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-40px" }}
-      transition={{ duration: 0.55, delay, ease: [0.22, 1, 0.36, 1] }}
-      className={className}
-    >
-      {children}
-    </motion.div>
-  );
-}
-
 function ScoreRow({
   label,
   before,
@@ -71,7 +56,7 @@ function ScoreRow({
 }: (typeof SCORE_IMPROVEMENTS)[number] & { delay: number }) {
   return (
     <FadeUp delay={delay}>
-      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 sm:p-6">
+      <GlassCard className="p-5 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="font-semibold text-white">{label}</span>
           <span className="text-sm font-medium text-emerald-400">
@@ -83,16 +68,8 @@ function ScoreRow({
           <span className="text-white/30">→</span>
           <span className="font-bold text-[#C9A84C]">{after}/10</span>
         </div>
-        <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10">
-          <motion.div
-            className="h-full rounded-full bg-gradient-to-r from-[#C9A84C] to-[#e8c96a]"
-            initial={{ width: 0 }}
-            whileInView={{ width: `${after * 10}%` }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.9, delay: delay + 0.1 }}
-          />
-        </div>
-      </div>
+        <PremiumProgressBar value={after * 10} className="mt-4" />
+      </GlassCard>
     </FadeUp>
   );
 }
@@ -166,6 +143,7 @@ export default function DashboardPage() {
   };
 
   return (
+    <PageTransition>
     <div
       className="min-h-screen font-sans text-white antialiased"
       style={{ backgroundColor: DARK }}
@@ -231,12 +209,9 @@ export default function DashboardPage() {
 
       <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-10">
         <FadeUp>
-          <div className="rounded-3xl border border-[#C9A84C]/25 bg-gradient-to-br from-[#C9A84C]/10 via-white/[0.04] to-transparent p-6 sm:p-8">
+          <GlassCard gold className="p-6 sm:p-8">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="relative flex h-2.5 w-2.5">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
-              </span>
+              <LiveDot />
               <span className="text-sm font-semibold text-emerald-400">
                 {activeDesign === "new" ? "New Design Active" : "Old Design Active"}
               </span>
@@ -258,30 +233,34 @@ export default function DashboardPage() {
             )}
 
             <div className="mt-8 grid gap-3 sm:grid-cols-2">
-              <button
+              <motion.button
                 type="button"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
                 disabled={switching || restoring}
                 onClick={() => setConfirmOld(true)}
                 className={`rounded-xl border px-5 py-4 text-sm font-semibold transition-all sm:text-base disabled:opacity-50 ${
                   activeDesign === "old"
-                    ? "border-[#C9A84C] bg-[#C9A84C] text-[#0D1117]"
-                    : "border-white/20 bg-white/5 text-white hover:border-white/40"
+                    ? "border-[#C9A84C] bg-[#C9A84C] text-[#0D1117] shadow-[0_0_24px_rgba(201,168,76,0.35)]"
+                    : "border-white/20 bg-white/5 text-white hover:border-[#C9A84C]/50 hover:bg-[#C9A84C]/10"
                 }`}
               >
                 Switch to Old Design
-              </button>
-              <button
+              </motion.button>
+              <motion.button
                 type="button"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
                 disabled={switching || restoring}
                 onClick={() => setConfirmNew(true)}
                 className={`rounded-xl border px-5 py-4 text-sm font-semibold transition-all sm:text-base disabled:opacity-50 ${
                   activeDesign === "new"
-                    ? "border-[#C9A84C] bg-[#C9A84C] text-[#0D1117]"
-                    : "border-white/20 bg-white/5 text-white hover:border-white/40"
+                    ? "border-[#C9A84C] bg-[#C9A84C] text-[#0D1117] shadow-[0_0_24px_rgba(201,168,76,0.35)]"
+                    : "border-white/20 bg-white/5 text-white hover:border-[#C9A84C]/50 hover:bg-[#C9A84C]/10"
                 }`}
               >
                 Switch to New Design
-              </button>
+              </motion.button>
             </div>
 
             <p className="mt-5 text-center text-xs text-white/45 sm:text-sm">
@@ -290,7 +269,7 @@ export default function DashboardPage() {
             <p className="mt-1 text-center text-xs text-[#C9A84C]/80 sm:text-sm">
               Your original design is safely backed up
             </p>
-          </div>
+          </GlassCard>
         </FadeUp>
 
         <section className="mt-10">
@@ -302,7 +281,7 @@ export default function DashboardPage() {
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             {HEALTH_CHECKS.map((check, i) => (
               <FadeUp key={check.label} delay={i * 0.06}>
-                <div className="flex items-start gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 sm:p-5">
+                <GlassCard className="flex items-start gap-3 border-emerald-500/20 bg-emerald-500/5 p-4 sm:p-5">
                   <span className="text-lg text-emerald-400">✅</span>
                   <div>
                     <p className="font-semibold text-white">{check.label}</p>
@@ -310,7 +289,7 @@ export default function DashboardPage() {
                       {check.detail}
                     </p>
                   </div>
-                </div>
+                </GlassCard>
               </FadeUp>
             ))}
           </div>
@@ -338,23 +317,39 @@ export default function DashboardPage() {
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             {QUICK_ACTIONS.map((action, i) => (
               <FadeUp key={action.title} delay={i * 0.05}>
-                <button
+                <motion.button
                   type="button"
+                  whileHover={{ y: -2 }}
+                  whileTap={{ scale: 0.98 }}
                   onClick={() =>
                     action.title === "Emergency Restore"
                       ? setConfirmRestore(true)
                       : undefined
                   }
-                  className="group w-full rounded-2xl border border-white/10 bg-white/[0.03] p-5 text-left transition-all hover:border-[#C9A84C]/40 hover:bg-[#C9A84C]/5 sm:p-6"
+                  className="group w-full text-left"
                 >
-                  <span className="text-2xl" aria-hidden>
-                    {action.emoji}
-                  </span>
-                  <p className="mt-3 font-semibold text-white group-hover:text-[#C9A84C]">
-                    {action.title}
-                  </p>
-                  <p className="mt-1 text-sm text-white/45">{action.desc}</p>
-                </button>
+                  <GlassCard
+                    className={`p-5 transition-all sm:p-6 ${
+                      action.title === "Emergency Restore"
+                        ? "hover:border-red-500/40 hover:bg-red-500/5"
+                        : "hover:border-[#C9A84C]/40 hover:bg-[#C9A84C]/5"
+                    }`}
+                  >
+                    <span className="text-2xl" aria-hidden>
+                      {action.emoji}
+                    </span>
+                    <p
+                      className={`mt-3 font-semibold text-white ${
+                        action.title === "Emergency Restore"
+                          ? "group-hover:text-red-300"
+                          : "group-hover:text-[#C9A84C]"
+                      }`}
+                    >
+                      {action.title}
+                    </p>
+                    <p className="mt-1 text-sm text-white/45">{action.desc}</p>
+                  </GlassCard>
+                </motion.button>
               </FadeUp>
             ))}
           </div>
@@ -367,14 +362,15 @@ export default function DashboardPage() {
             </h2>
           </FadeUp>
           <FadeUp className="mt-4">
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 sm:p-6">
-              <ul>
-                {ACTIVITY.map((item, i) => (
+            <GlassCard className="p-5 sm:p-6">
+              <ul className="relative">
+                <div className="absolute left-4 top-4 bottom-4 w-px bg-gradient-to-b from-[#C9A84C]/40 via-white/10 to-transparent" />
+                {ACTIVITY.map((item) => (
                   <li
                     key={item.text}
-                    className="relative flex gap-4 border-b border-white/5 py-4 last:border-0"
+                    className="relative flex gap-4 py-4 pl-2 first:pt-0 last:pb-0"
                   >
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#C9A84C]/30 text-sm">
+                    <span className="relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#C9A84C]/30 bg-[#0D1117] text-sm">
                       {item.emoji}
                     </span>
                     <div>
@@ -384,33 +380,59 @@ export default function DashboardPage() {
                   </li>
                 ))}
               </ul>
-            </div>
+            </GlassCard>
           </FadeUp>
         </section>
 
         <FadeUp className="mt-10">
-          <div className="rounded-2xl border-2 border-red-500/40 bg-red-500/5 p-6 sm:p-8">
+          <div className="relative overflow-hidden rounded-2xl border border-[#C9A84C]/20 border-l-4 border-l-[#C9A84C] bg-[rgba(201,168,76,0.08)] p-8 sm:p-10">
+            <motion.span
+              animate={{ scale: [1, 1.14, 1] }}
+              transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
+              className="inline-block text-3xl"
+              aria-hidden
+            >
+              ❤️
+            </motion.span>
+            <h2 className="rub-font-display mt-4 text-xl font-semibold text-[#C9A84C] sm:text-2xl">
+              Your generosity
+            </h2>
+            <p className="mt-3 max-w-lg text-sm leading-relaxed text-white/70 sm:text-base">
+              7% of your payment went to old age homes, orphanages and children&apos;s
+              education.
+            </p>
+            <p className="rub-font-display mt-5 text-sm italic text-white/50 sm:text-base">
+              Thank you for making a real difference — your order helps someone who needs it.
+            </p>
+          </div>
+        </FadeUp>
+
+        <FadeUp className="mt-10">
+          <GlassCard className="border-2 border-red-500/40 bg-red-500/5 p-6 sm:p-8">
             <h2 className="text-xl font-bold text-white sm:text-2xl">
               Something not right?
             </h2>
             <p className="mt-3 max-w-md text-sm leading-relaxed text-white/60 sm:text-base">
               Restore your original website in under 3 minutes. One click.
             </p>
-            <button
+            <motion.button
               type="button"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
               disabled={restoring || switching}
               onClick={() => setConfirmRestore(true)}
               className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl border border-red-500/50 bg-red-500/20 px-6 py-4 text-sm font-bold text-red-300 transition-all hover:bg-red-500/30 disabled:opacity-50 sm:w-auto sm:text-base"
             >
               {restoring && <Spinner />}
               🚨 Restore Original Website
-            </button>
+            </motion.button>
             <p className="mt-4 text-xs text-white/35 sm:text-sm">
               Available 24 hours a day · 365 days a year
             </p>
-          </div>
+          </GlassCard>
         </FadeUp>
       </main>
     </div>
+    </PageTransition>
   );
 }

@@ -47,7 +47,7 @@ export function FriendlyError({
     <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
-      className="rounded-2xl border border-red-500/30 bg-red-500/10 p-6 text-center"
+      className="rounded-2xl border border-red-500/30 bg-red-500/10 p-8 text-center backdrop-blur-xl"
     >
       <p className="text-lg font-semibold text-white">Oops! Something went wrong.</p>
       <p className="mt-2 text-sm leading-relaxed text-white/60">
@@ -111,10 +111,10 @@ export function ConfirmModal({
             exit={{ scale: 0.9, opacity: 0 }}
             transition={{ type: "spring", stiffness: 300, damping: 28 }}
             onClick={(e) => e.stopPropagation()}
-            className={`w-full max-w-md rounded-2xl border p-6 sm:p-8 ${
+            className={`w-full max-w-md rounded-2xl border p-6 sm:p-8 backdrop-blur-xl ${
               variant === "danger"
-                ? "border-red-500/40 bg-[#0D1117]"
-                : "border-[#C9A84C]/30 bg-[#0D1117]"
+                ? "border-red-500/40 glass-card"
+                : "border-[#C9A84C]/30 glass-card-gold"
             }`}
           >
             <h3 className="text-xl font-bold text-white">{title}</h3>
@@ -169,7 +169,7 @@ export function ProgressOverlay({
           exit={{ opacity: 0 }}
           className="fixed inset-0 z-[90] flex items-center justify-center bg-[#0D1117]/90 px-4 backdrop-blur-sm"
         >
-          <div className="w-full max-w-sm rounded-2xl border border-[#C9A84C]/30 bg-[#0D1117] p-8 text-center">
+          <div className="w-full max-w-sm rounded-2xl glass-card-gold p-8 text-center">
             <Spinner className="mx-auto h-8 w-8 text-[#C9A84C]" />
             <p className="mt-4 font-semibold text-white">{title}</p>
             {message && (

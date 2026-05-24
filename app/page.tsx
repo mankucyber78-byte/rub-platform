@@ -1,104 +1,35 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import { CharityCauseGrid } from "@/components/rub-charity";
 import { ErrorBanner, Spinner } from "@/components/rub-ui";
-import { normalizeUrl, setStoredUrl } from "@/lib/rub-storage";
 import {
-  AnimatePresence,
-  motion,
-  useInView,
-  useMotionValue,
-  useSpring,
-} from "framer-motion";
+  AnimatedNumber,
+  FadeUp,
+  GlassCard,
+  GoldParticles,
+  Hero3DBackground,
+  LiveActivityTicker,
+  PageTransition,
+  SectionHeading,
+  TrustBadge,
+} from "@/components/rub-premium";
+import {
+  clearStoredUser,
+  getStoredUser,
+  normalizeUrl,
+  setPendingUrl,
+  setStoredUrl,
+  type RubUser,
+} from "@/lib/rub-storage";
+import { AnimatePresence, motion } from "framer-motion";
 
-const GOLD = "#C9A84C";
 const DARK = "#0D1117";
-
-function FadeUp({
-  children,
-  className = "",
-  delay = 0,
-}: {
-  children: React.ReactNode;
-  className?: string;
-  delay?: number;
-}) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 32 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-60px" }}
-      transition={{ duration: 0.6, delay, ease: [0.22, 1, 0.36, 1] }}
-      className={className}
-    >
-      {children}
-    </motion.div>
-  );
-}
-
-function AnimatedCounter({ target }: { target: number }) {
-  const ref = useRef<HTMLSpanElement>(null);
-  const inView = useInView(ref, { once: true, margin: "-80px" });
-  const motionValue = useMotionValue(0);
-  const spring = useSpring(motionValue, { duration: 2000, bounce: 0 });
-  const [display, setDisplay] = useState(0);
-
-  useEffect(() => {
-    if (inView) motionValue.set(target);
-  }, [inView, motionValue, target]);
-
-  useEffect(() => {
-    const unsub = spring.on("change", (v) => setDisplay(Math.round(v)));
-    return unsub;
-  }, [spring]);
-
-  return (
-    <span ref={ref} className="font-semibold text-[#C9A84C]">
-      {display.toLocaleString()}
-    </span>
-  );
-}
-
-const PARTICLES = Array.from({ length: 24 }, (_, i) => ({
-  id: i,
-  left: `${(i * 17 + 7) % 100}%`,
-  size: 2 + (i % 3),
-  delay: (i % 8) * 0.4,
-  duration: 6 + (i % 5),
-}));
-
-function GoldParticles() {
-  return (
-    <div className="pointer-events-none absolute inset-0 overflow-hidden">
-      {PARTICLES.map((p) => (
-        <motion.div
-          key={p.id}
-          className="absolute rounded-full bg-[#C9A84C]/40"
-          style={{
-            left: p.left,
-            bottom: "-10%",
-            width: p.size,
-            height: p.size,
-          }}
-          animate={{
-            y: [0, -900],
-            opacity: [0, 0.8, 0],
-          }}
-          transition={{
-            duration: p.duration,
-            delay: p.delay,
-            repeat: Infinity,
-            ease: "linear",
-          }}
-        />
-      ))}
-    </div>
-  );
-}
 
 const NAV_LINKS = [
   { label: "How It Works", href: "#how-it-works" },
+  { label: "Free Autopsy", href: "/autopsy", gold: true },
   { label: "Pricing", href: "#pricing" },
   { label: "Examples", href: "#testimonials" },
 ];
@@ -109,7 +40,7 @@ const STEPS = [
   { icon: "📷", title: "Upload photos and videos", desc: "Share your media so AI can enhance everything." },
   { icon: "🤖", title: "AI redesigns everything", desc: "10 specialized agents rebuild your frontend." },
   { icon: "👀", title: "Preview for free", desc: "See the full redesign before you pay a cent." },
-  { icon: "🚀", title: "Pay $39 and go live", desc: "One-time payment. Your new site goes live instantly." },
+  { icon: "🚀", title: "Pay $49.99 and go live", desc: "One-time payment. Your new site goes live instantly." },
 ];
 
 const AGENTS = [
@@ -145,7 +76,7 @@ const TESTIMONIALS = [
   {
     name: "Sarah K.",
     role: "Salon owner, Miami",
-    text: "I was skeptical about AI, but the preview blew me away. Paid $39 and never looked back.",
+    text: "I was skeptical about AI, but the preview blew me away. Paid $49.99 and never looked back.",
     stars: 5,
   },
   {
@@ -195,7 +126,7 @@ function FAQItem({ q, a }: { q: string; a: string }) {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="border-b border-white/10">
+    <div className="border-b border-white/10 last:border-b-0">
       <button
         type="button"
         onClick={() => setOpen(!open)}
@@ -203,29 +134,41 @@ function FAQItem({ q, a }: { q: string; a: string }) {
         aria-expanded={open}
       >
         <span className="text-base font-medium sm:text-lg">{q}</span>
-        <motion.span
-          animate={{ rotate: open ? 45 : 0 }}
-          transition={{ duration: 0.25 }}
-          className="shrink-0 text-2xl text-[#C9A84C]"
+        <span
+          className="relative flex h-7 w-7 shrink-0 items-center justify-center text-2xl leading-none text-[#C9A84C]"
+          aria-hidden
         >
-          +
-        </motion.span>
-      </button>
-      <AnimatePresence initial={false}>
-        {open && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-            className="overflow-hidden"
+          <motion.span
+            initial={false}
+            animate={{ opacity: open ? 0 : 1, scale: open ? 0.5 : 1 }}
+            transition={{ duration: 0.2 }}
+            className="absolute"
           >
-            <p className="pb-5 text-sm leading-relaxed text-white/60 sm:text-base">
-              {a}
-            </p>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            +
+          </motion.span>
+          <motion.span
+            initial={false}
+            animate={{ opacity: open ? 1 : 0, scale: open ? 1 : 0.5 }}
+            transition={{ duration: 0.2 }}
+            className="absolute"
+          >
+            −
+          </motion.span>
+        </span>
+      </button>
+      <motion.div
+        initial={false}
+        animate={{
+          height: open ? "auto" : 0,
+          opacity: open ? 1 : 0,
+        }}
+        transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+        className="overflow-hidden"
+      >
+        <p className="pb-5 text-sm leading-relaxed text-white/60 sm:text-base">
+          {a}
+        </p>
+      </motion.div>
     </div>
   );
 }
@@ -236,19 +179,41 @@ export default function Home() {
   const [url, setUrl] = useState("");
   const [urlError, setUrlError] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
+  const [shakeInput, setShakeInput] = useState(false);
+  const [user, setUser] = useState<RubUser | null>(null);
+
+  useEffect(() => {
+    setUser(getStoredUser());
+  }, []);
+
+  const handleSignOut = () => {
+    clearStoredUser();
+    setUser(null);
+  };
 
   const handleAnalyze = async () => {
     if (!url.trim()) {
       setUrlError("Please enter your website URL");
+      setShakeInput(true);
+      setTimeout(() => setShakeInput(false), 500);
       return;
     }
     setUrlError("");
     setAnalyzing(true);
     try {
       const normalized = normalizeUrl(url);
+      const currentUser = getStoredUser();
+
+      if (!currentUser) {
+        setPendingUrl(normalized);
+        await new Promise((r) => setTimeout(r, 400));
+        router.push("/sign-up");
+        return;
+      }
+
       setStoredUrl(normalized);
       await new Promise((r) => setTimeout(r, 400));
-      router.push("/analyze");
+      router.push("/verify");
     } catch {
       setUrlError("Something went wrong. Please try again.");
       setAnalyzing(false);
@@ -256,12 +221,12 @@ export default function Home() {
   };
 
   return (
+    <PageTransition>
     <div
       className="min-h-screen font-sans text-white antialiased"
       style={{ backgroundColor: DARK }}
     >
-      {/* STICKY NAVBAR */}
-      <header className="fixed top-0 right-0 left-0 z-50 border-b border-white/5 bg-[#0D1117]/80 backdrop-blur-md">
+      <header className="fixed top-0 right-0 left-0 z-50 border-b border-white/5 bg-[#0D1117]/70 backdrop-blur-xl">
         <nav className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
           <a href="#" className="text-xl font-bold tracking-tight text-[#C9A84C]">
             RUB
@@ -272,7 +237,11 @@ export default function Home() {
               <li key={link.href}>
                 <a
                   href={link.href}
-                  className="text-sm text-white/70 transition-colors hover:text-[#C9A84C]"
+                  className={`text-sm transition-colors hover:text-[#C9A84C] ${
+                    "gold" in link && link.gold
+                      ? "font-semibold text-[#C9A84C]"
+                      : "text-white/70"
+                  }`}
                 >
                   {link.label}
                 </a>
@@ -281,12 +250,46 @@ export default function Home() {
           </ul>
 
           <div className="flex items-center gap-3">
-            <a
-              href="#hero"
-              className="hidden rounded-lg bg-[#C9A84C] px-4 py-2 text-sm font-semibold text-[#0D1117] transition-opacity hover:opacity-90 sm:inline-block"
-            >
-              Get Started
-            </a>
+            {user ? (
+              <>
+                <a
+                  href="/dashboard"
+                  className="hidden text-sm text-white/70 hover:text-[#C9A84C] sm:inline"
+                >
+                  Dashboard
+                </a>
+                <span className="hidden max-w-[120px] truncate text-xs text-white/50 sm:inline sm:max-w-[160px] sm:text-sm">
+                  {user.email}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleSignOut}
+                  className="hidden text-sm text-white/50 hover:text-white sm:inline"
+                >
+                  Sign Out
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => router.push("/sign-in")}
+                  className="hidden text-sm text-white/70 hover:text-[#C9A84C] sm:inline"
+                >
+                  Sign In
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const el = document.getElementById("hero");
+                    el?.scrollIntoView({ behavior: "smooth" });
+                  }}
+                  className="rub-btn-gold hidden rounded-xl px-4 py-2 text-sm sm:inline-block"
+                >
+                  Get Started
+                </button>
+              </>
+            )}
             <button
               type="button"
               className="flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 md:hidden"
@@ -312,20 +315,59 @@ export default function Home() {
                     <a
                       href={link.href}
                       onClick={() => setMobileMenuOpen(false)}
-                      className="block py-2 text-white/70 hover:text-[#C9A84C]"
+                      className={`block py-2 hover:text-[#C9A84C] ${
+                        "gold" in link && link.gold
+                          ? "font-semibold text-[#C9A84C]"
+                          : "text-white/70"
+                      }`}
                     >
                       {link.label}
                     </a>
                   </li>
                 ))}
-                <li>
-                  <a
-                    href="#hero"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="mt-2 block rounded-lg bg-[#C9A84C] px-4 py-3 text-center text-sm font-semibold text-[#0D1117]"
-                  >
-                    Get Started
-                  </a>
+                <li className="border-t border-white/10 pt-3">
+                  {user ? (
+                    <>
+                      <a
+                        href="/dashboard"
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="block py-2 text-white/70 hover:text-[#C9A84C]"
+                      >
+                        Dashboard
+                      </a>
+                      <p className="truncate py-1 text-xs text-white/40">{user.email}</p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleSignOut();
+                          setMobileMenuOpen(false);
+                        }}
+                        className="py-2 text-sm text-white/50"
+                      >
+                        Sign Out
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMobileMenuOpen(false);
+                          router.push("/sign-in");
+                        }}
+                        className="block w-full py-2 text-left text-white/70 hover:text-[#C9A84C]"
+                      >
+                        Sign In
+                      </button>
+                      <a
+                        href="#hero"
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="mt-2 block rounded-lg bg-[#C9A84C] px-4 py-3 text-center text-sm font-semibold text-[#0D1117]"
+                      >
+                        Get Started
+                      </a>
+                    </>
+                  )}
                 </li>
               </ul>
             </motion.div>
@@ -338,24 +380,12 @@ export default function Home() {
         id="hero"
         className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-4 pt-24 pb-16 sm:px-6"
       >
-        <div
-          className="pointer-events-none absolute inset-0"
-          style={{
-            background:
-              "radial-gradient(ellipse 80% 50% at 50% 0%, rgba(201,168,76,0.15) 0%, transparent 70%)",
-          }}
-        />
+        <Hero3DBackground />
         <GoldParticles />
 
         <div className="relative z-10 mx-auto w-full max-w-3xl text-center">
           <FadeUp>
-            <h1
-              className="text-4xl leading-tight font-normal text-white sm:text-5xl md:text-6xl lg:text-7xl"
-              style={{
-                fontFamily:
-                  'ui-serif, Georgia, Cambria, "Times New Roman", Times, serif',
-              }}
-            >
+            <h1 className="rub-heading-xl text-4xl text-white sm:text-5xl md:text-6xl lg:text-7xl">
               Give Your Old Website A{" "}
               <span className="text-[#C9A84C]">New Life</span>
             </h1>
@@ -369,54 +399,63 @@ export default function Home() {
           </FadeUp>
 
           <FadeUp delay={0.2} className="mt-10 w-full">
-            <div className="flex flex-col gap-4 sm:flex-row">
+            <GlassCard gold className="p-2 sm:p-3">
+            <div className="flex flex-col gap-3 sm:flex-row">
               <div className="w-full flex-1">
-                <input
+                <motion.input
                   type="url"
                   value={url}
+                  animate={shakeInput ? { x: [0, -10, 10, -10, 10, 0] } : { x: 0 }}
+                  transition={{ duration: 0.45 }}
                   onChange={(e) => {
                     setUrl(e.target.value);
                     if (urlError) setUrlError("");
                   }}
                   placeholder="Paste your website URL here..."
-                  className="w-full rounded-xl border border-white/20 bg-white/5 px-5 py-4 text-white placeholder:text-white/40 outline-none transition-colors focus:border-[#C9A84C] focus:ring-2 focus:ring-[#C9A84C]/30"
+                  whileFocus={{ scale: 1.01 }}
+                  className="rub-input w-full rounded-xl px-5 py-4 text-white placeholder:text-white/40"
                 />
                 {urlError && <ErrorBanner message={urlError} />}
               </div>
-              <button
+              <motion.button
                 type="button"
                 onClick={handleAnalyze}
                 disabled={analyzing}
-                className="flex shrink-0 items-center justify-center gap-2 rounded-xl bg-[#C9A84C] px-8 py-4 text-base font-bold text-[#0D1117] transition-transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60 disabled:hover:scale-100"
+                whileTap={{ scale: 0.98 }}
+                className="rub-btn-gold flex shrink-0 items-center justify-center gap-2 rounded-xl px-8 py-4 text-base"
               >
                 {analyzing && <Spinner />}
                 Analyze My Website
-              </button>
+              </motion.button>
             </div>
+            </GlassCard>
           </FadeUp>
 
           <FadeUp delay={0.3}>
-            <div className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-3 text-sm text-white/70">
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
               {[
                 "Free preview",
                 "No card needed",
                 "30 day guarantee",
                 "Backend never touched",
               ].map((badge) => (
-                <span key={badge} className="flex items-center gap-1.5">
-                  <span className="text-[#C9A84C]">✅</span> {badge}
-                </span>
+                <TrustBadge key={badge}>
+                  <span className="text-[#C9A84C]">✓</span> {badge}
+                </TrustBadge>
               ))}
             </div>
           </FadeUp>
 
           <FadeUp delay={0.4} className="mt-10">
             <p className="text-sm text-white/50 sm:text-base">
-              <AnimatedCounter target={2341} /> websites redesigned
+              <AnimatedNumber value={2341} className="font-semibold text-[#C9A84C]" />{" "}
+              websites redesigned
             </p>
           </FadeUp>
         </div>
       </section>
+
+      <LiveActivityTicker />
 
       {/* HOW IT WORKS */}
       <section
@@ -424,16 +463,15 @@ export default function Home() {
         className="px-4 py-20 sm:px-6 sm:py-28 lg:px-8"
       >
         <div className="mx-auto max-w-6xl">
-          <FadeUp className="mb-14 text-center">
-            <h2 className="text-3xl font-bold text-white sm:text-4xl">
-              How RUB Works
-            </h2>
+          <FadeUp className="mb-14">
+            <SectionHeading title="How RUB Works" subtitle="From URL to live redesign in minutes" />
           </FadeUp>
 
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {STEPS.map((step, i) => (
               <FadeUp key={step.title} delay={i * 0.08}>
-                <div className="h-full rounded-2xl border border-white/10 bg-white/5 p-6 transition-colors hover:border-[#C9A84C]/40 hover:bg-white/[0.07]">
+                <motion.div whileHover={{ y: -4 }} className="h-full">
+                <GlassCard className="h-full p-6 transition-colors hover:border-[#C9A84C]/30">
                   <span className="text-3xl" role="img" aria-hidden>
                     {step.icon}
                   </span>
@@ -443,7 +481,8 @@ export default function Home() {
                   <p className="mt-2 text-sm leading-relaxed text-white/50">
                     {step.desc}
                   </p>
-                </div>
+                </GlassCard>
+                </motion.div>
               </FadeUp>
             ))}
           </div>
@@ -453,27 +492,27 @@ export default function Home() {
       {/* 10 AI AGENTS */}
       <section className="px-4 py-20 sm:px-6 sm:py-28 lg:px-8">
         <div className="mx-auto max-w-6xl">
-          <FadeUp className="mb-14 text-center">
-            <h2 className="text-3xl font-bold text-white sm:text-4xl">
-              10 AI Agents Work For You
-            </h2>
+          <FadeUp className="mb-14">
+            <SectionHeading title="10 AI Agents Work For You" subtitle="Specialized AI working in parallel for your business" />
           </FadeUp>
 
           <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
             {AGENTS.map((agent, i) => (
               <FadeUp key={agent.name} delay={i * 0.05}>
                 <motion.div
-                  whileHover={{ y: -6, scale: 1.02 }}
-                  transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                  className="group cursor-default rounded-2xl border border-white/10 bg-white/5 p-5 text-center transition-colors hover:border-[#C9A84C]"
+                  whileHover={{ y: -8, scale: 1.03 }}
+                  transition={{ type: "spring", stiffness: 320, damping: 18 }}
+                  className="group h-full"
                 >
-                  <span className="text-3xl" role="img" aria-hidden>
+                  <GlassCard className="h-full p-5 text-center transition-all group-hover:border-[#C9A84C]/50 group-hover:shadow-[0_0_24px_rgba(201,168,76,0.12)]">
+                  <motion.span className="inline-block text-3xl" whileHover={{ rotate: [0, -8, 8, 0] }} transition={{ duration: 0.4 }}>
                     {agent.emoji}
-                  </span>
+                  </motion.span>
                   <h3 className="mt-3 font-semibold text-[#C9A84C]">
                     {agent.name}
                   </h3>
                   <p className="mt-1 text-xs text-white/50">{agent.role}</p>
+                  </GlassCard>
                 </motion.div>
               </FadeUp>
             ))}
@@ -494,12 +533,12 @@ export default function Home() {
           </FadeUp>
 
           <FadeUp>
-            <div className="rounded-3xl border border-[#C9A84C]/30 bg-white/5 p-8 text-center sm:p-12">
+            <GlassCard gold className="p-8 text-center sm:p-12">
               <p
                 className="text-6xl font-bold sm:text-7xl"
-                style={{ color: GOLD }}
+                style={{ color: "#C9A84C" }}
               >
-                $39
+                $49.99
               </p>
               <p className="mt-2 text-lg text-white/60">One time payment</p>
 
@@ -512,19 +551,47 @@ export default function Home() {
                 ))}
               </ul>
 
-              <button
+              <motion.button
                 type="button"
                 onClick={handleAnalyze}
                 disabled={analyzing}
-                className="mt-10 flex w-full items-center justify-center gap-2 rounded-xl bg-[#C9A84C] px-8 py-4 text-base font-bold text-[#0D1117] transition-transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60 sm:mx-auto sm:w-auto sm:min-w-[280px]"
+                whileTap={{ scale: 0.98 }}
+                className="rub-btn-gold mt-10 flex w-full items-center justify-center gap-2 rounded-xl px-8 py-4 text-base sm:mx-auto sm:w-auto sm:min-w-[280px]"
               >
                 {analyzing && <Spinner />}
                 Analyze My Website
-              </button>
+              </motion.button>
               <p className="mt-4 text-sm text-white/40">
                 No credit card needed to preview
               </p>
-            </div>
+            </GlassCard>
+          </FadeUp>
+        </div>
+      </section>
+
+      {/* GIVING BACK */}
+      <section className="border-t border-white/[0.06] px-4 py-20 sm:px-6 sm:py-28 lg:px-8">
+        <div className="mx-auto max-w-6xl text-center">
+          <FadeUp>
+            <h2 className="rub-font-display text-3xl font-bold text-white sm:text-4xl">
+              Every redesign gives back
+            </h2>
+            <p className="mx-auto mt-4 max-w-lg text-base text-white/55 sm:text-lg">
+              7% of every payment goes directly to people who need it most
+            </p>
+          </FadeUp>
+
+          <div className="mt-12">
+            <CharityCauseGrid />
+          </div>
+
+          <FadeUp className="mt-8">
+            <a
+              href="/giving"
+              className="inline-block text-sm font-semibold text-[#C9A84C] transition-colors hover:underline sm:text-base"
+            >
+              See our giving page →
+            </a>
           </FadeUp>
         </div>
       </section>
@@ -541,19 +608,23 @@ export default function Home() {
             </h2>
           </FadeUp>
 
-          <div className="grid gap-6 md:grid-cols-3">
+          <div className="grid auto-rows-fr gap-6 md:grid-cols-3">
             {TESTIMONIALS.map((t, i) => (
-              <FadeUp key={t.name} delay={i * 0.1}>
-                <div className="h-full rounded-2xl border border-white/10 bg-white/5 p-6">
-                  <Stars count={t.stars} />
-                  <p className="mt-4 text-sm leading-relaxed text-white/70">
-                    &ldquo;{t.text}&rdquo;
-                  </p>
-                  <div className="mt-6 border-t border-white/10 pt-4">
-                    <p className="font-semibold text-white">{t.name}</p>
-                    <p className="text-xs text-white/40">{t.role}</p>
-                  </div>
-                </div>
+              <FadeUp key={t.name} delay={i * 0.1} className="h-full">
+                <motion.div whileHover={{ y: -4 }} className="h-full">
+                  <GlassCard className="flex h-full min-h-[280px] flex-col justify-between p-6">
+                    <div>
+                      <Stars count={t.stars} />
+                      <p className="mt-4 text-sm leading-relaxed text-white/70">
+                        &ldquo;{t.text}&rdquo;
+                      </p>
+                    </div>
+                    <div className="mt-6 border-t border-white/10 pt-4">
+                      <p className="font-semibold text-white">{t.name}</p>
+                      <p className="text-xs text-white/40">{t.role}</p>
+                    </div>
+                  </GlassCard>
+                </motion.div>
               </FadeUp>
             ))}
           </div>
@@ -568,10 +639,45 @@ export default function Home() {
           </FadeUp>
 
           <FadeUp>
-            <div className="rounded-2xl border border-white/10 bg-white/5 px-6">
+            <GlassCard className="px-6">
               {FAQS.map((faq) => (
                 <FAQItem key={faq.q} q={faq.q} a={faq.a} />
               ))}
+            </GlassCard>
+          </FadeUp>
+        </div>
+      </section>
+
+      {/* FINAL CTA */}
+      <section className="relative overflow-hidden border-t border-white/[0.06] px-4 py-20 sm:px-6 sm:py-28 lg:px-8">
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background:
+              "radial-gradient(ellipse 70% 60% at 50% 50%, rgba(201,168,76,0.15) 0%, transparent 70%)",
+          }}
+        />
+        <div className="relative mx-auto max-w-3xl text-center">
+          <FadeUp>
+            <h2 className="rub-font-display text-3xl font-bold text-white sm:text-4xl lg:text-5xl">
+              Ready to transform your website?
+            </h2>
+            <p className="mx-auto mt-4 max-w-xl text-base text-white/55 sm:text-lg">
+              Join thousands of business owners who chose RUB
+            </p>
+            <motion.button
+              type="button"
+              onClick={() => {
+                document.getElementById("hero")?.scrollIntoView({ behavior: "smooth" });
+              }}
+              whileTap={{ scale: 0.98 }}
+              className="rub-btn-gold mt-10 inline-flex items-center justify-center gap-2 rounded-xl px-10 py-4 text-base sm:text-lg"
+            >
+              Analyze My Website Free →
+            </motion.button>
+            <div className="mt-4 space-y-1 text-sm text-white/40">
+              <p>No credit card needed</p>
+              <p>See results before paying</p>
             </div>
           </FadeUp>
         </div>
@@ -600,5 +706,6 @@ export default function Home() {
         </FadeUp>
       </footer>
     </div>
+    </PageTransition>
   );
 }

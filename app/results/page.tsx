@@ -11,88 +11,40 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import { motion, useInView } from "framer-motion";
-import { FriendlyError, Spinner } from "@/components/rub-ui";
-import { displayUrl, getStoredUrl } from "@/lib/rub-storage";
+import { Spinner } from "@/components/rub-ui";
+import {
+  AnimatedNumber,
+  EmptyState,
+  GoldParticles,
+  SkeletonPage,
+} from "@/components/rub-premium";
+import type { AnalysisResult } from "@/lib/agents/types";
+import {
+  buildHealthScores,
+  buildScoreImprovements,
+} from "@/lib/agents/build-health-report";
+import {
+  displayUrl,
+  getStoredAnalysis,
+  getStoredUrl,
+} from "@/lib/rub-storage";
 
-const DARK = "#0D1117";
+const BG = "#080B10";
+const CARD = "#0D1117";
 const GOLD = "#C9A84C";
+const EASE = [0.22, 1, 0.36, 1] as const;
 
-type ScoreColor = "red" | "orange" | "green";
-
-const HEALTH_SCORES: {
-  label: string;
-  value: number;
-  max: number;
-  color: ScoreColor;
-  issue: string;
-}[] = [
-  {
-    label: "Overall Score",
-    value: 34,
-    max: 100,
-    color: "red",
-    issue: "Site underperforms on every major metric — urgent redesign recommended.",
-  },
-  {
-    label: "Design Score",
-    value: 3,
-    max: 10,
-    color: "red",
-    issue: "Outdated layout, poor typography, no visual hierarchy or brand consistency.",
-  },
-  {
-    label: "Mobile Score",
-    value: 2,
-    max: 10,
-    color: "red",
-    issue: "Not mobile-friendly — text too small, buttons hard to tap, horizontal scrolling.",
-  },
-  {
-    label: "Speed Score",
-    value: 4,
-    max: 10,
-    color: "orange",
-    issue: "Large unoptimized images slow load time — visitors leave before page loads.",
-  },
-  {
-    label: "SEO Score",
-    value: 5,
-    max: 10,
-    color: "orange",
-    issue: "Missing meta descriptions, weak headings, no local SEO structure.",
-  },
-  {
-    label: "Content Score",
-    value: 4,
-    max: 10,
-    color: "orange",
-    issue: "Generic copy, unclear calls-to-action, no trust signals or social proof.",
-  },
-  {
-    label: "Image Score",
-    value: 3,
-    max: 10,
-    color: "red",
-    issue: "Low-resolution photos, inconsistent cropping, no alt text for accessibility.",
-  },
-];
-
-const SCORE_IMPROVEMENTS = [
-  { label: "Design", before: 3, after: 9 },
-  { label: "Mobile", before: 2, after: 10 },
-  { label: "Speed", before: 4, after: 9 },
-  { label: "SEO", before: 5, after: 8 },
-];
-
-const PHOTO_DETECTIONS = [
-  "Exterior detected — Hero section",
-  "Interior detected — Gallery section",
-  "Team photo detected — About section",
-  "Product detected — Services section",
-  "Food item detected — Menu section",
-  "Logo detected — Header section",
-  "Workspace detected — Features section",
-  "Portrait detected — Testimonials section",
+const PHOTO_LABELS = [
+  "Hero photo",
+  "Team photo",
+  "Interior photo",
+  "Product photo",
+  "Service photo",
+  "Gallery photo",
+  "Logo photo",
+  "Workspace photo",
+  "Portrait photo",
+  "Exterior photo",
 ];
 
 const VIDEO_PLACEMENTS = [
@@ -103,40 +55,33 @@ const VIDEO_PLACEMENTS = [
   "Contact page embed",
 ];
 
-const PAYMENT_FEATURES = [
-  "Modern 2026 design applied",
-  "10 photos placed intelligently",
-  "5 videos optimized and placed",
-  "Mobile friendly layout",
-  "SEO improvements applied",
-  "Content rewritten professionally",
-  "Page speed optimized",
-];
+const SCORE_ICONS: Record<string, string> = {
+  "Design Score": "🎨",
+  "Mobile Score": "📱",
+  "Speed Score": "⚡",
+  "SEO Score": "📈",
+  "Content Score": "✍️",
+  "Image Score": "📸",
+};
 
-const TRUST_BADGES = [
-  "Backend never touched",
-  "Forms still work",
-  "Payments still work",
-  "Switch old/new in 3 minutes",
-];
+function scoreHex(value: number, max: number) {
+  const pct = (value / max) * 100;
+  if (pct <= 40) return "#EF4444";
+  if (pct <= 70) return "#F97316";
+  return GOLD;
+}
 
-function colorClasses(color: ScoreColor) {
-  switch (color) {
-    case "red":
-      return { bar: "bg-red-500", text: "text-red-400", ring: "border-red-500/30" };
-    case "orange":
-      return {
-        bar: "bg-orange-500",
-        text: "text-orange-400",
-        ring: "border-orange-500/30",
-      };
-    case "green":
-      return {
-        bar: "bg-emerald-500",
-        text: "text-emerald-400",
-        ring: "border-emerald-500/30",
-      };
-  }
+function projectedOverall(analysis: AnalysisResult) {
+  const { improvedScores, scores } = analysis;
+  const projected =
+    (improvedScores.design +
+      improvedScores.mobile +
+      improvedScores.speed +
+      improvedScores.seo +
+      Math.min(scores.content + 5, 10) +
+      Math.min(scores.image + 6, 10)) /
+    6;
+  return Math.round(projected * 10);
 }
 
 function FadeUp({
@@ -150,10 +95,10 @@ function FadeUp({
 }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 28 }}
+      initial={{ opacity: 0, y: 24 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-40px" }}
-      transition={{ duration: 0.55, delay, ease: [0.22, 1, 0.36, 1] }}
+      transition={{ duration: 0.55, delay, ease: EASE }}
       className={className}
     >
       {children}
@@ -161,136 +106,283 @@ function FadeUp({
   );
 }
 
-function ScoreBar({
-  label,
+function CircularScoreRing({
   value,
   max,
   color,
-  issue,
-}: (typeof HEALTH_SCORES)[number]) {
-  const pct = (value / max) * 100;
-  const c = colorClasses(color);
+}: {
+  value: number;
+  max: number;
+  color: string;
+}) {
+  const r = 54;
+  const c = 2 * Math.PI * r;
+  const pct = value / max;
 
   return (
-    <div className={`rounded-xl border bg-white/[0.03] p-4 sm:p-5 ${c.ring}`}>
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-sm font-medium text-white/90 sm:text-base">
-          {label}
-        </span>
-        <span className={`text-lg font-bold sm:text-xl ${c.text}`}>
-          {value}/{max}
-        </span>
-      </div>
-      <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
-        <motion.div
-          className={`h-full rounded-full ${c.bar}`}
-          initial={{ width: 0 }}
-          whileInView={{ width: `${pct}%` }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-        />
-      </div>
-      <p className="mt-3 text-xs leading-relaxed text-white/45 sm:text-sm">
-        {issue}
-      </p>
-    </div>
+    <svg className="h-36 w-36 -rotate-90 sm:h-40 sm:w-40" viewBox="0 0 120 120">
+      <circle
+        cx="60"
+        cy="60"
+        r={r}
+        fill="none"
+        stroke="rgba(255,255,255,0.06)"
+        strokeWidth="8"
+      />
+      <motion.circle
+        cx="60"
+        cy="60"
+        r={r}
+        fill="none"
+        stroke={color}
+        strokeWidth="8"
+        strokeLinecap="round"
+        strokeDasharray={c}
+        initial={{ strokeDashoffset: c }}
+        whileInView={{ strokeDashoffset: c * (1 - pct) }}
+        viewport={{ once: true }}
+        transition={{ duration: 1.4, ease: EASE }}
+      />
+    </svg>
   );
 }
 
-function OldWebsiteMock() {
-  return (
-    <div className="relative h-full min-h-[320px] overflow-hidden bg-[#1a1f26] sm:min-h-[420px]">
-      <div className="absolute inset-0 bg-black/50" />
-      <div className="relative flex h-full flex-col p-3 opacity-70 blur-[0.5px] sm:p-4">
-        <div className="flex items-center justify-between border-b border-white/10 pb-2">
-          <div className="h-3 w-16 rounded bg-white/20" />
-          <div className="flex gap-1">
-            <div className="h-2 w-8 rounded bg-white/15" />
-            <div className="h-2 w-8 rounded bg-white/15" />
-            <div className="h-2 w-8 rounded bg-white/15" />
-          </div>
-        </div>
-        <div className="mt-4 flex-1 space-y-3">
-          <div className="h-24 rounded bg-white/10 sm:h-32" />
-          <p className="text-[10px] text-white/40 sm:text-xs">
-            Welcome to our website!!! Click here!!!
-          </p>
-          <div className="grid grid-cols-3 gap-2">
-            <div className="h-14 rounded bg-white/10" />
-            <div className="h-14 rounded bg-white/10" />
-            <div className="h-14 rounded bg-white/10" />
-          </div>
-          <div className="h-8 w-24 rounded bg-blue-900/60" />
-        </div>
-        <span className="absolute bottom-3 left-3 rounded bg-black/60 px-2 py-1 text-[10px] font-medium text-white/50">
-          OLD WEBSITE
-        </span>
-      </div>
-    </div>
-  );
-}
+function OverallScoreCard({ score }: { score: number }) {
+  const color = scoreHex(score, 100);
+  const critical = score < 50;
 
-function NewWebsiteMock() {
   return (
-    <div className="relative h-full min-h-[320px] overflow-hidden bg-[#0D1117] sm:min-h-[420px]">
+    <div
+      className="relative overflow-hidden rounded-2xl border border-white/[0.06] p-6 text-center sm:p-10"
+      style={{ backgroundColor: CARD }}
+    >
       <div
-        className="absolute inset-0 opacity-30"
+        className="pointer-events-none absolute inset-0 opacity-40"
         style={{
-          background:
-            "radial-gradient(ellipse 70% 40% at 50% 0%, rgba(201,168,76,0.35) 0%, transparent 70%)",
+          background: `radial-gradient(circle at 50% 30%, ${color}22 0%, transparent 60%)`,
         }}
       />
-      <div className="relative flex h-full flex-col p-3 sm:p-4">
+      <div className="relative flex flex-col items-center">
+        <div className="relative flex items-center justify-center">
+          <CircularScoreRing value={score} max={100} color={color} />
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <span style={{ color }}>
+              <AnimatedNumber
+                value={score}
+                className="rub-font-display text-5xl font-bold sm:text-6xl"
+              />
+            </span>
+            <span className="text-sm text-white/40">/100</span>
+          </div>
+        </div>
+        {critical && (
+          <motion.span
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 0.5 }}
+            className="mt-4 rounded-full border border-red-500/40 bg-red-500/15 px-4 py-1 text-xs font-bold tracking-widest text-red-400 uppercase"
+          >
+            Critical
+          </motion.span>
+        )}
+        <p className="mt-4 max-w-sm text-sm text-white/50">
+          Your site underperforms on design, mobile, and speed — costing you
+          customers every day.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function ScoreCard({
+  label,
+  value,
+  max,
+  issue,
+  delay,
+}: {
+  label: string;
+  value: number;
+  max: number;
+  issue: string;
+  delay: number;
+}) {
+  const color = scoreHex(value, max);
+  const icon = SCORE_ICONS[label] ?? "📊";
+
+  return (
+    <FadeUp delay={delay}>
+      <div
+        className="rounded-xl border border-white/[0.06] p-4 sm:p-5"
+        style={{ backgroundColor: CARD }}
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="text-lg" aria-hidden>
+              {icon}
+            </span>
+            <span className="text-sm font-medium text-white/80">{label.replace(" Score", "")}</span>
+          </div>
+          <span style={{ color }}>
+            <AnimatedNumber
+              value={value}
+              suffix={`/${max}`}
+              className="text-xl font-bold sm:text-2xl"
+            />
+          </span>
+        </div>
+        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
+          <motion.div
+            className="h-full rounded-full"
+            style={{ backgroundColor: color }}
+            initial={{ width: 0 }}
+            whileInView={{ width: `${(value / max) * 100}%` }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.9, delay: delay + 0.1, ease: EASE }}
+          />
+        </div>
+        <p className="mt-3 text-xs leading-relaxed text-white/40">{issue}</p>
+      </div>
+    </FadeUp>
+  );
+}
+
+function RevenueDamageCard({ analysis }: { analysis: AnalysisResult }) {
+  const monthly = analysis.revenueEstimate.revenueLostPerMonth;
+  const daily = Math.round(monthly / 30);
+
+  return (
+    <FadeUp>
+      <motion.div
+        className="rub-pulse-attention relative overflow-hidden rounded-2xl border border-red-500/25 p-6 sm:p-10"
+        style={{ background: "linear-gradient(135deg, rgba(239,68,68,0.12) 0%, #0D1117 60%)" }}
+      >
+        <h3 className="rub-font-display text-xl font-semibold text-white sm:text-2xl">
+          Your Website Is Costing You
+        </h3>
+        <p className="mt-4">
+          <span className="rub-font-display text-5xl font-bold text-red-500 sm:text-6xl">
+            ${monthly.toLocaleString()}
+          </span>
+          <span className="mt-1 block text-sm text-white/50">per month</span>
+        </p>
+        <p className="mt-4 text-sm text-red-400/90">
+          Every day you wait costs{" "}
+          <span className="font-semibold text-red-400">${daily}</span>
+        </p>
+        <p className="mt-6 text-[11px] leading-relaxed text-white/30">
+          Estimate based on real technical scores and industry averages.{" "}
+          {analysis.revenueEstimate.disclaimer}
+        </p>
+      </motion.div>
+    </FadeUp>
+  );
+}
+
+function OldWebsitePreview({ screenshot }: { screenshot?: string }) {
+  if (screenshot) {
+    return (
+      <div className="relative h-full min-h-[280px] sm:min-h-[400px]">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={screenshot}
+          alt="Current website"
+          className="h-full w-full object-cover object-top saturate-[0.65]"
+        />
+        <div className="absolute inset-0 bg-black/30" />
+      </div>
+    );
+  }
+  return (
+    <div
+      className="relative h-full min-h-[280px] saturate-[0.55] sm:min-h-[400px]"
+      style={{ backgroundColor: "#1a1f26" }}
+    >
+      <div className="flex h-full flex-col p-4 opacity-75">
+        <div className="flex items-center justify-between border-b border-white/10 pb-2">
+          <div className="h-3 w-20 rounded bg-white/20" />
+          <div className="flex gap-1">
+            {[1, 2, 3].map((n) => (
+              <div key={n} className="h-2 w-6 rounded bg-white/15" />
+            ))}
+          </div>
+        </div>
+        <div className="mt-4 space-y-3">
+          <div className="h-28 rounded bg-white/10" />
+          <p className="text-xs text-white/40">Welcome!!! Click here!!!</p>
+          <div className="grid grid-cols-3 gap-2">
+            {[1, 2, 3].map((n) => (
+              <div key={n} className="h-12 rounded bg-white/10" />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function NewWebsitePreview({ analysis }: { analysis: AnalysisResult }) {
+  const { picasso, writer, einstein } = analysis;
+  return (
+    <div
+      className="relative h-full min-h-[280px] sm:min-h-[400px]"
+      style={{ backgroundColor: picasso.backgroundColor }}
+    >
+      <div
+        className="absolute inset-0"
+        style={{
+          background: `radial-gradient(ellipse 80% 50% at 50% 0%, ${picasso.accentColor}44 0%, transparent 70%)`,
+        }}
+      />
+      <div className="relative flex h-full flex-col p-4 sm:p-5">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-bold text-[#C9A84C]">RUB</span>
-          <div className="flex gap-3 text-[10px] text-white/50">
+          <span className="text-sm font-bold" style={{ color: picasso.accentColor }}>
+            {einstein.businessType}
+          </span>
+          <div className="flex gap-2 text-[10px] text-white/50">
             <span>Home</span>
             <span>Services</span>
             <span>Contact</span>
           </div>
         </div>
-        <div className="mt-6 flex-1">
-          <h3
-            className="text-lg font-normal text-white sm:text-2xl"
-            style={{
-              fontFamily:
-                'ui-serif, Georgia, Cambria, "Times New Roman", Times, serif',
-            }}
-          >
-            Your Business, <span className="text-[#C9A84C]">Elevated</span>
-          </h3>
-          <p className="mt-2 max-w-xs text-[10px] leading-relaxed text-white/50 sm:text-xs">
-            Professional design. Mobile-first. Built to convert visitors into
-            customers.
-          </p>
-          <button
-            type="button"
-            className="mt-4 rounded-lg bg-[#C9A84C] px-4 py-2 text-[10px] font-bold text-[#0D1117] sm:text-xs"
-          >
-            Get Started
-          </button>
-          <div className="mt-6 grid grid-cols-3 gap-2">
-            {[1, 2, 3].map((n) => (
-              <div
-                key={n}
-                className="rounded-lg border border-[#C9A84C]/20 bg-white/5 p-2"
-              >
-                <div className="mb-1 h-8 rounded bg-[#C9A84C]/20" />
-                <div className="h-1.5 w-full rounded bg-white/20" />
-                <div className="mt-1 h-1 w-2/3 rounded bg-white/10" />
-              </div>
-            ))}
-          </div>
+        <h3 className="rub-font-display mt-6 text-xl text-white sm:text-2xl">
+          {writer.heroHeadline}
+        </h3>
+        <p className="mt-2 max-w-xs text-xs text-white/60">{writer.heroSubheadline}</p>
+        <button
+          type="button"
+          className="mt-4 w-fit rounded-lg px-4 py-2 text-xs font-bold"
+          style={{ backgroundColor: picasso.accentColor, color: picasso.backgroundColor }}
+        >
+          {writer.ctaText}
+        </button>
+        <div className="mt-6 grid grid-cols-3 gap-2">
+          {[1, 2, 3].map((n) => (
+            <div
+              key={n}
+              className="rounded-lg border border-white/10 bg-white/5 p-2"
+            >
+              <div className="mb-1 h-8 rounded bg-white/10" />
+              <div className="h-1 w-full rounded bg-white/20" />
+            </div>
+          ))}
         </div>
-        <span className="absolute right-3 bottom-3 rounded bg-[#C9A84C]/20 px-2 py-1 text-[10px] font-semibold text-[#C9A84C]">
-          NEW RUB DESIGN
-        </span>
       </div>
     </div>
   );
 }
 
-function BeforeAfterSlider() {
+function BeforeAfterSlider({
+  screenshot,
+  analysis,
+  beforeScore,
+  afterScore,
+}: {
+  screenshot?: string;
+  analysis: AnalysisResult;
+  beforeScore: number;
+  afterScore: number;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState(50);
   const dragging = useRef(false);
@@ -328,81 +420,70 @@ function BeforeAfterSlider() {
   }, [updatePosition]);
 
   return (
-    <div
-      ref={containerRef}
-      className="relative aspect-[4/3] w-full cursor-ew-resize select-none overflow-hidden rounded-2xl border border-white/10 sm:aspect-[16/10]"
-      onMouseDown={(e) => {
-        dragging.current = true;
-        updatePosition(e.clientX);
-      }}
-      onTouchStart={(e) => {
-        dragging.current = true;
-        if (e.touches[0]) updatePosition(e.touches[0].clientX);
-      }}
-    >
-      <div className="absolute inset-0">
-        <NewWebsiteMock />
-      </div>
+    <div>
       <div
-        className="absolute inset-0 overflow-hidden"
-        style={{ clipPath: `inset(0 ${100 - position}% 0 0)` }}
+        ref={containerRef}
+        className="relative aspect-[4/3] w-full cursor-ew-resize select-none overflow-hidden rounded-2xl border border-white/[0.08] sm:aspect-[16/9]"
+        onMouseDown={(e) => {
+          dragging.current = true;
+          updatePosition(e.clientX);
+        }}
+        onTouchStart={(e) => {
+          dragging.current = true;
+          if (e.touches[0]) updatePosition(e.touches[0].clientX);
+        }}
       >
-        <OldWebsiteMock />
-      </div>
-      <div
-        className="absolute top-0 bottom-0 z-10 w-1 bg-[#C9A84C] shadow-[0_0_12px_rgba(201,168,76,0.6)]"
-        style={{ left: `${position}%`, transform: "translateX(-50%)" }}
-      >
-        <div className="absolute top-1/2 left-1/2 flex h-10 w-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-[#C9A84C] bg-[#0D1117] shadow-lg">
-          <span className="text-[#C9A84C] text-xs">◀ ▶</span>
+        <div className="absolute inset-0">
+          <NewWebsitePreview analysis={analysis} />
         </div>
-      </div>
-      <div className="pointer-events-none absolute top-3 left-3 rounded bg-black/50 px-2 py-1 text-[10px] text-white/70">
-        Before
-      </div>
-      <div className="pointer-events-none absolute top-3 right-3 rounded bg-[#C9A84C]/20 px-2 py-1 text-[10px] font-medium text-[#C9A84C]">
-        After
+        <div
+          className="absolute inset-0 overflow-hidden"
+          style={{ clipPath: `inset(0 ${100 - position}% 0 0)` }}
+        >
+          <OldWebsitePreview screenshot={screenshot} />
+        </div>
+        <div
+          className="absolute top-0 bottom-0 z-10 w-0.5 bg-[#C9A84C] shadow-[0_0_16px_rgba(201,168,76,0.7)]"
+          style={{ left: `${position}%` }}
+        >
+          <div className="absolute top-1/2 left-1/2 flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-[#C9A84C] bg-[#080B10] shadow-xl">
+            <span className="text-[10px] font-bold text-[#C9A84C]">◀ ▶</span>
+          </div>
+        </div>
+        <span className="pointer-events-none absolute top-3 left-3 rounded bg-black/60 px-2.5 py-1 text-[10px] font-bold tracking-wider text-white/80 uppercase">
+          Before
+        </span>
+        <span className="pointer-events-none absolute top-3 right-3 rounded bg-[#C9A84C]/20 px-2.5 py-1 text-[10px] font-bold tracking-wider text-[#C9A84C] uppercase">
+          After
+        </span>
+        <span className="pointer-events-none absolute bottom-3 left-3 rounded-full bg-red-500/90 px-2.5 py-1 text-[10px] font-bold text-white">
+          {beforeScore}/100
+        </span>
+        <span className="pointer-events-none absolute right-3 bottom-3 rounded-full bg-[#C9A84C] px-2.5 py-1 text-[10px] font-bold text-[#080B10]">
+          {afterScore}/100
+        </span>
       </div>
     </div>
   );
 }
 
-type UploadedPhoto = {
-  id: string;
-  url: string;
-  name: string;
-  detection: string;
-};
-
-type UploadedVideo = {
-  id: string;
-  url: string;
-  name: string;
-  placement: string;
-};
-
 function UploadZone({
-  accept,
+  icon,
   label,
   hint,
+  accept,
   onFiles,
   disabled,
 }: {
-  accept: string;
+  icon: "photo" | "video";
   label: string;
   hint: string;
+  accept: string;
   onFiles: (files: FileList) => void;
   disabled?: boolean;
 }) {
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-
-  const handleDrop = (e: DragEvent) => {
-    e.preventDefault();
-    setDragOver(false);
-    if (disabled || !e.dataTransfer.files.length) return;
-    onFiles(e.dataTransfer.files);
-  };
 
   return (
     <div
@@ -411,19 +492,23 @@ function UploadZone({
         if (!disabled) setDragOver(true);
       }}
       onDragLeave={() => setDragOver(false)}
-      onDrop={handleDrop}
+      onDrop={(e: DragEvent) => {
+        e.preventDefault();
+        setDragOver(false);
+        if (!disabled && e.dataTransfer.files.length) onFiles(e.dataTransfer.files);
+      }}
       onClick={() => !disabled && inputRef.current?.click()}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") inputRef.current?.click();
       }}
       role="button"
       tabIndex={0}
-      className={`flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-6 py-10 text-center transition-colors ${
+      className={`flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 py-10 text-center transition-all ${
         disabled
           ? "cursor-not-allowed border-white/10 opacity-50"
           : dragOver
             ? "border-[#C9A84C] bg-[#C9A84C]/10"
-            : "border-white/20 bg-white/[0.02] hover:border-[#C9A84C]/50 hover:bg-white/[0.04]"
+            : "border-[#C9A84C]/40 bg-transparent hover:border-[#C9A84C] hover:bg-[#C9A84C]/5"
       }`}
     >
       <input
@@ -438,42 +523,59 @@ function UploadZone({
           e.target.value = "";
         }}
       />
-      <span className="text-3xl" aria-hidden>
-        {accept.includes("video") ? "🎬" : "📷"}
+      <span className="text-4xl text-[#C9A84C]/80" aria-hidden>
+        {icon === "photo" ? "📷" : "🎬"}
       </span>
       <p className="mt-3 text-sm font-medium text-white">{label}</p>
       <p className="mt-1 text-xs text-white/40">{hint}</p>
-      <p className="mt-4 text-xs text-[#C9A84C]">Drag and drop or click to browse</p>
     </div>
   );
 }
 
+type UploadedPhoto = { id: string; url: string; name: string; label: string };
+type UploadedVideo = { id: string; url: string; name: string; placement: string };
+
 function ResultsContent() {
   const router = useRouter();
   const [websiteUrl, setWebsiteUrl] = useState("yourwebsite.com");
+  const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
+  const [loading, setLoading] = useState(true);
   const [publishing, setPublishing] = useState(false);
-  const [publishError, setPublishError] = useState(false);
+  const [photos, setPhotos] = useState<UploadedPhoto[]>([]);
+  const [videos, setVideos] = useState<UploadedVideo[]>([]);
+  const uploadSectionRef = useRef<HTMLElement>(null);
+  const paymentRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const stored = getStoredAnalysis<AnalysisResult>();
+    if (stored) {
+      setAnalysis(stored);
+      setWebsiteUrl(displayUrl(stored.url));
+    } else {
+      setWebsiteUrl(displayUrl(getStoredUrl()));
+    }
+    setLoading(false);
+  }, []);
+
+  const healthScores = analysis ? buildHealthScores(analysis) : [];
+  const overallScore = healthScores.find((s) => s.label === "Overall Score");
+  const detailScores = healthScores.filter((s) => s.label !== "Overall Score");
+  const scoreImprovements = analysis ? buildScoreImprovements(analysis) : [];
+  const afterOverall = analysis ? projectedOverall(analysis) : 91;
 
   const handlePublish = async () => {
     setPublishing(true);
-    setPublishError(false);
-    try {
-      await new Promise((r) => setTimeout(r, 500));
-      router.push("/payment");
-    } catch {
-      setPublishError(true);
-      setPublishing(false);
-    }
+    await new Promise((r) => setTimeout(r, 500));
+    router.push("/payment");
   };
 
-  useEffect(() => {
-    setWebsiteUrl(displayUrl(getStoredUrl()));
-  }, []);
+  const scrollToUpload = () => {
+    uploadSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
-  const [photos, setPhotos] = useState<UploadedPhoto[]>([]);
-  const [videos, setVideos] = useState<UploadedVideo[]>([]);
-  const paymentRef = useRef<HTMLElement>(null);
-  const paymentInView = useInView(paymentRef, { once: true, margin: "-80px" });
+  const scrollToPayment = () => {
+    paymentRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   const handlePhotos = (files: FileList) => {
     const remaining = 10 - photos.length;
@@ -481,15 +583,15 @@ function ResultsContent() {
     const toAdd = Array.from(files)
       .filter((f) => f.type.startsWith("image/"))
       .slice(0, remaining);
-
-    const newPhotos: UploadedPhoto[] = toAdd.map((file, i) => ({
-      id: `${Date.now()}-${i}`,
-      url: URL.createObjectURL(file),
-      name: file.name,
-      detection:
-        PHOTO_DETECTIONS[(photos.length + i) % PHOTO_DETECTIONS.length],
-    }));
-    setPhotos((prev) => [...prev, ...newPhotos]);
+    setPhotos((prev) => [
+      ...prev,
+      ...toAdd.map((file, i) => ({
+        id: `${Date.now()}-${i}`,
+        url: URL.createObjectURL(file),
+        name: file.name,
+        label: PHOTO_LABELS[(prev.length + i) % PHOTO_LABELS.length],
+      })),
+    ]);
   };
 
   const handleVideos = (files: FileList) => {
@@ -498,132 +600,125 @@ function ResultsContent() {
     const toAdd = Array.from(files)
       .filter((f) => f.type.startsWith("video/"))
       .slice(0, remaining);
-
-    const newVideos: UploadedVideo[] = toAdd.map((file, i) => ({
-      id: `${Date.now()}-${i}`,
-      url: URL.createObjectURL(file),
-      name: file.name,
-      placement: VIDEO_PLACEMENTS[(videos.length + i) % VIDEO_PLACEMENTS.length],
-    }));
-    setVideos((prev) => [...prev, ...newVideos]);
+    setVideos((prev) => [
+      ...prev,
+      ...toAdd.map((file, i) => ({
+        id: `${Date.now()}-${i}`,
+        url: URL.createObjectURL(file),
+        name: file.name,
+        placement: VIDEO_PLACEMENTS[(prev.length + i) % VIDEO_PLACEMENTS.length],
+      })),
+    ]);
   };
 
-  const removePhoto = (id: string) => {
-    setPhotos((prev) => {
-      const item = prev.find((p) => p.id === id);
-      if (item) URL.revokeObjectURL(item.url);
-      return prev.filter((p) => p.id !== id);
-    });
-  };
+  if (loading) return <SkeletonPage />;
 
-  const removeVideo = (id: string) => {
-    setVideos((prev) => {
-      const item = prev.find((v) => v.id === id);
-      if (item) URL.revokeObjectURL(item.url);
-      return prev.filter((v) => v.id !== id);
-    });
-  };
+  if (!analysis) {
+    return (
+      <div
+        className="flex min-h-screen items-center justify-center px-4"
+        style={{ backgroundColor: BG }}
+      >
+        <EmptyState
+          icon="📊"
+          title="No analysis yet"
+          description="Run an analysis from the homepage to see your website health report."
+          action={
+            <button
+              type="button"
+              onClick={() => router.push("/")}
+              className="rub-btn-gold rounded-xl px-6 py-3 text-sm"
+            >
+              Analyze My Website
+            </button>
+          }
+        />
+      </div>
+    );
+  }
 
   return (
-    <div
-      className="min-h-screen font-sans text-white antialiased"
-      style={{ backgroundColor: DARK }}
-    >
-      <header className="sticky top-0 z-40 border-b border-white/5 bg-[#0D1117]/90 px-4 py-4 backdrop-blur-md sm:px-6">
-        <div className="mx-auto flex max-w-4xl items-center justify-between">
-          <a href="/" className="text-xl font-bold text-[#C9A84C]">
+    <div className="relative min-h-screen text-white" style={{ backgroundColor: BG }}>
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <GoldParticles />
+        <div className="rub-radial-glow absolute inset-0" />
+      </div>
+
+      <header className="sticky top-0 z-40 border-b border-white/[0.06] bg-[#080B10]/90 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 px-4 py-3.5 sm:px-6">
+          <a href="/" className="shrink-0 text-lg font-bold text-[#C9A84C]">
             RUB
           </a>
-          <span className="max-w-[50%] truncate text-xs text-white/40 sm:text-sm">
-            {websiteUrl}
+          <span className="truncate text-xs text-white/45 sm:text-sm">{websiteUrl}</span>
+          <span className="shrink-0 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-medium text-emerald-400 sm:text-xs">
+            Analysis Complete ✅
           </span>
         </div>
       </header>
 
-      <main className="mx-auto max-w-4xl px-4 py-10 sm:px-6 sm:py-14">
-        {publishError && (
-          <div className="mb-8">
-            <FriendlyError onRetry={() => setPublishError(false)} />
-          </div>
-        )}
-
+      <main className="relative z-10 mx-auto max-w-4xl px-4 py-10 pb-28 sm:px-6 sm:py-14 sm:pb-20">
         {/* SECTION 1 — HEALTH REPORT */}
         <FadeUp>
-          <div className="text-center sm:text-left">
-            <p className="text-sm font-medium text-[#C9A84C]">
-              Analysis complete
-            </p>
-            <h1 className="mt-2 text-2xl font-bold text-white sm:text-4xl">
-              Website Health Report
-            </h1>
-            <p className="mt-2 text-sm text-white/50">
-              Scores for your current website before RUB redesign
-            </p>
-          </div>
+          <h1 className="rub-font-display text-3xl font-bold text-white sm:text-4xl">
+            Website Health Report
+          </h1>
+          <p className="mt-2 text-sm text-white/45">Before RUB Redesign</p>
         </FadeUp>
 
-        <div className="mt-8 grid gap-4 sm:grid-cols-2">
-          {HEALTH_SCORES.map((score, i) => (
-            <FadeUp
+        {overallScore && (
+          <FadeUp className="mt-8">
+            <OverallScoreCard score={overallScore.value} />
+          </FadeUp>
+        )}
+
+        <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
+          {detailScores.map((score, i) => (
+            <ScoreCard
               key={score.label}
-              delay={i * 0.05}
-              className={score.label === "Overall Score" ? "sm:col-span-2" : ""}
-            >
-              <ScoreBar {...score} />
-            </FadeUp>
+              label={score.label}
+              value={score.value}
+              max={score.max}
+              issue={score.issue}
+              delay={i * 0.06}
+            />
           ))}
         </div>
 
-        <FadeUp className="mt-6">
-          <div className="rounded-2xl border border-red-500/30 bg-red-500/5 p-5 sm:p-6">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-sm text-white/60">
-                  Estimated customers lost per month
-                </p>
-                <p className="mt-1 text-3xl font-bold text-red-400">47</p>
-              </div>
-              <div className="hidden h-12 w-px bg-white/10 sm:block" />
-              <div>
-                <p className="text-sm text-white/60">
-                  Estimated revenue lost per month
-                </p>
-                <p className="mt-1 text-3xl font-bold text-red-400">$2,350</p>
-              </div>
-            </div>
-          </div>
-        </FadeUp>
+        <div className="mt-8">
+          <RevenueDamageCard analysis={analysis} />
+        </div>
 
         {/* SECTION 2 — UPLOAD */}
-        <section className="mt-20 border-t border-white/10 pt-16">
+        <section ref={uploadSectionRef} className="mt-20 border-t border-white/[0.06] pt-16">
           <FadeUp>
-            <h2 className="text-2xl font-bold text-white sm:text-3xl">
-              Now add your business photos and videos
+            <h2 className="rub-font-display text-2xl font-bold text-white sm:text-3xl">
+              Add Your Business Content
             </h2>
-            <p className="mt-2 text-sm text-white/50 sm:text-base">
-              Our AI will enhance and place them perfectly
+            <p className="mt-2 text-sm text-white/45">
+              Our AI will enhance and place everything perfectly
             </p>
           </FadeUp>
 
           <FadeUp className="mt-8">
-            <h3 className="mb-3 text-sm font-semibold text-[#C9A84C]">
-              Photos ({photos.length}/10)
-            </h3>
             <UploadZone
+              icon="photo"
+              label="Upload up to 10 photos"
+              hint="Drag and drop or click to browse — JPG, PNG, WEBP"
               accept="image/*"
-              label="Upload business photos"
-              hint="JPG, PNG, WEBP — up to 10 photos"
               onFiles={handlePhotos}
               disabled={photos.length >= 10}
             />
           </FadeUp>
 
           {photos.length > 0 && (
-            <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+            <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
               {photos.map((photo) => (
-                <div
+                <motion.div
                   key={photo.id}
-                  className="group relative overflow-hidden rounded-xl border border-white/10 bg-white/5"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="group overflow-hidden rounded-xl border border-white/[0.06]"
+                  style={{ backgroundColor: CARD }}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
@@ -631,45 +726,36 @@ function ResultsContent() {
                     alt={photo.name}
                     className="aspect-square w-full object-cover"
                   />
-                  <button
-                    type="button"
-                    onClick={() => removePhoto(photo.id)}
-                    className="absolute top-2 right-2 flex h-6 w-6 items-center justify-center rounded-full bg-black/70 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100"
-                    aria-label="Remove photo"
-                  >
-                    ✕
-                  </button>
-                  <div className="border-t border-white/10 bg-[#0D1117]/90 p-2">
-                    <p className="text-[10px] leading-snug text-[#C9A84C] sm:text-xs">
-                      {photo.detection}
+                  <div className="border-t border-white/[0.06] p-2">
+                    <p className="text-[10px] font-medium text-[#C9A84C] sm:text-xs">
+                      {photo.label}
                     </p>
                   </div>
-                </div>
+                </motion.div>
               ))}
             </div>
           )}
 
-          <FadeUp className="mt-10">
-            <h3 className="mb-3 text-sm font-semibold text-[#C9A84C]">
-              Videos ({videos.length}/5)
-            </h3>
+          <FadeUp className="mt-8">
             <UploadZone
+              icon="video"
+              label="Upload up to 5 short videos"
+              hint="Drag and drop or click — MP4, MOV, WEBM"
               accept="video/*"
-              label="Upload business videos"
-              hint="MP4, MOV, WEBM — up to 5 videos"
               onFiles={handleVideos}
               disabled={videos.length >= 5}
             />
           </FadeUp>
 
           {videos.length > 0 && (
-            <div className="mt-6 grid gap-4 sm:grid-cols-2">
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
               {videos.map((video) => (
                 <div
                   key={video.id}
-                  className="overflow-hidden rounded-xl border border-white/10 bg-white/5"
+                  className="overflow-hidden rounded-xl border border-white/[0.06]"
+                  style={{ backgroundColor: CARD }}
                 >
-                  <div className="relative aspect-video bg-black/40">
+                  <div className="relative aspect-video bg-black/50">
                     <video
                       src={video.url}
                       className="h-full w-full object-cover"
@@ -681,22 +767,9 @@ function ResultsContent() {
                         e.currentTarget.currentTime = 0;
                       }}
                     />
-                    <button
-                      type="button"
-                      onClick={() => removeVideo(video.id)}
-                      className="absolute top-2 right-2 flex h-6 w-6 items-center justify-center rounded-full bg-black/70 text-xs text-white"
-                      aria-label="Remove video"
-                    >
-                      ✕
-                    </button>
                   </div>
                   <div className="p-3">
-                    <p className="truncate text-xs text-white/50">
-                      {video.name}
-                    </p>
-                    <p className="mt-1 text-xs font-medium text-[#C9A84C]">
-                      → {video.placement}
-                    </p>
+                    <p className="text-xs text-[#C9A84C]">→ {video.placement}</p>
                   </div>
                 </div>
               ))}
@@ -705,101 +778,184 @@ function ResultsContent() {
         </section>
 
         {/* SECTION 3 — BEFORE / AFTER */}
-        <section className="mt-20 border-t border-white/10 pt-16">
+        <section className="mt-20 border-t border-white/[0.06] pt-16">
           <FadeUp>
-            <h2 className="text-2xl font-bold text-white sm:text-3xl">
-              Before &amp; After Preview
+            <h2 className="rub-font-display text-2xl font-bold text-white sm:text-3xl">
+              Before &amp; After
             </h2>
-            <p className="mt-2 text-sm text-white/50">
-              Drag the slider to compare your old site with the new RUB redesign
+            <p className="mt-2 text-sm text-white/45">
+              Drag the gold handle to compare your old site with the new RUB design
             </p>
           </FadeUp>
 
           <FadeUp className="mt-8">
-            <BeforeAfterSlider />
+            <BeforeAfterSlider
+              screenshot={analysis.scout.screenshot}
+              analysis={analysis}
+              beforeScore={analysis.scores.overall}
+              afterScore={afterOverall}
+            />
           </FadeUp>
 
-          <FadeUp className="mt-8">
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {SCORE_IMPROVEMENTS.map((item) => (
+          <FadeUp className="mt-6">
+            <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
+              {scoreImprovements.map((item) => (
                 <div
                   key={item.label}
-                  className="rounded-xl border border-[#C9A84C]/20 bg-[#C9A84C]/5 p-4 text-center"
+                  className="flex items-center gap-2 rounded-full border border-[#C9A84C]/25 bg-[#C9A84C]/5 px-3 py-2 text-xs sm:text-sm"
                 >
-                  <p className="text-xs text-white/50">{item.label}</p>
-                  <p className="mt-2 text-sm font-bold sm:text-base">
-                    <span className="text-red-400">{item.before}/10</span>
-                    <span className="mx-1 text-white/30">→</span>
-                    <span className="text-[#C9A84C]">{item.after}/10</span>
-                  </p>
+                  <span className="text-white/50">{item.label}</span>
+                  <span className="font-bold text-red-400">{item.before}</span>
+                  <span className="text-[#C9A84C]">→</span>
+                  <span className="font-bold text-[#C9A84C]">{item.after}</span>
                 </div>
               ))}
             </div>
           </FadeUp>
         </section>
 
-        {/* SECTION 4 — PAYMENT (below preview) */}
-        <section
-          ref={paymentRef}
-          className="mt-20 border-t border-white/10 pt-16 pb-20"
-        >
+        {/* WHAT HAPPENS NEXT */}
+        <section className="mt-20 border-t border-white/[0.06] pt-16">
+          <FadeUp>
+            <h2 className="rub-font-display text-center text-2xl font-bold text-white sm:text-3xl">
+              What Happens Next?
+            </h2>
+          </FadeUp>
+          <div className="mt-8 grid gap-4 sm:grid-cols-3">
+            <FadeUp delay={0.05}>
+              <div
+                className="flex h-full flex-col rounded-xl border border-white/[0.06] p-5 sm:p-6"
+                style={{ backgroundColor: CARD }}
+              >
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#C9A84C]/15 text-sm font-bold text-[#C9A84C]">
+                  1
+                </span>
+                <h3 className="mt-4 font-semibold text-white">Upload your photos and videos</h3>
+                <p className="mt-2 flex-1 text-sm text-white/45">
+                  Add up to 10 photos and 5 videos — AI enhances and places them.
+                </p>
+                <button
+                  type="button"
+                  onClick={scrollToUpload}
+                  className="mt-4 text-left text-sm font-semibold text-[#C9A84C] hover:underline"
+                >
+                  Upload Now →
+                </button>
+              </div>
+            </FadeUp>
+            <FadeUp delay={0.1}>
+              <div
+                className="flex h-full flex-col rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-5 sm:p-6"
+              >
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500/15 text-sm font-bold text-emerald-400">
+                  2
+                </span>
+                <h3 className="mt-4 font-semibold text-white">Review your new design</h3>
+                <p className="mt-2 flex-1 text-sm text-emerald-400/80">Already done ✅</p>
+                <p className="mt-4 text-sm text-white/45">
+                  Use the slider above to compare before and after.
+                </p>
+              </div>
+            </FadeUp>
+            <FadeUp delay={0.15}>
+              <div
+                className="flex h-full flex-col rounded-xl border border-[#C9A84C]/30 bg-[#C9A84C]/5 p-5 sm:p-6"
+              >
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#C9A84C]/20 text-sm font-bold text-[#C9A84C]">
+                  3
+                </span>
+                <h3 className="mt-4 font-semibold text-white">Publish for $49.99</h3>
+                <p className="mt-2 flex-1 text-sm text-white/45">
+                  One-time payment. Go live in under 60 seconds.
+                </p>
+                <button
+                  type="button"
+                  onClick={scrollToPayment}
+                  className="mt-4 text-left text-sm font-semibold text-[#C9A84C] hover:underline"
+                >
+                  Publish My Website →
+                </button>
+              </div>
+            </FadeUp>
+          </div>
+        </section>
+
+        {/* SECTION 4 — PAYMENT */}
+        <section ref={paymentRef} className="mt-20 border-t border-white/[0.06] pt-16 pb-8">
           <motion.div
-            initial={{ opacity: 0, y: 40 }}
-            animate={paymentInView ? { opacity: 1, y: 0 } : {}}
-            transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-            className="mx-auto max-w-lg rounded-3xl border border-[#C9A84C]/30 bg-white/[0.04] p-8 text-center sm:p-10"
+            initial={{ opacity: 0, y: 32 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-40px" }}
+            transition={{ duration: 0.65, ease: EASE }}
+            className="mx-auto w-full max-w-2xl rounded-2xl border-2 border-[#C9A84C]/45 p-8 text-center shadow-[0_0_60px_rgba(201,168,76,0.12)] sm:p-12"
+            style={{
+              background:
+                "linear-gradient(135deg, rgba(201,168,76,0.1) 0%, rgba(13,17,23,0.98) 50%)",
+            }}
           >
-            <h2 className="text-2xl font-bold text-white sm:text-3xl">
+            <h2 className="rub-font-display text-3xl font-bold text-white sm:text-4xl">
               Your new website is ready!
             </h2>
-            <p className="mt-3 text-sm text-white/50 sm:text-base">
-              Love what you see? Go live for $39
+            <p className="mx-auto mt-3 max-w-md text-sm text-white/55 sm:text-base">
+              Love what you see? Go live in under 2 minutes
             </p>
 
-            <ul className="mx-auto mt-8 max-w-sm space-y-2.5 text-left text-sm text-white/80">
-              {PAYMENT_FEATURES.map((feature) => (
-                <li key={feature} className="flex items-start gap-2">
-                  <span className="text-[#C9A84C]">✅</span>
-                  {feature}
-                </li>
-              ))}
-            </ul>
+            <div className="mx-auto mt-10 max-w-lg rounded-xl border border-white/[0.08] bg-black/20 px-6 py-8">
+              <p className="text-xs tracking-widest text-white/40 uppercase">Score improvement</p>
+              <p className="rub-font-display mt-3 flex flex-wrap items-baseline justify-center gap-x-3 gap-y-1 text-5xl font-bold sm:text-6xl">
+                <span className="text-red-400">{analysis.scores.overall}</span>
+                <span className="text-3xl text-white/25 sm:text-4xl">/100</span>
+                <span className="text-3xl text-white/30 sm:text-4xl">→</span>
+                <span className="text-[#C9A84C]">{afterOverall}</span>
+                <span className="text-3xl text-white/25 sm:text-4xl">/100</span>
+              </p>
+            </div>
 
-            <button
+            <motion.button
               type="button"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
               onClick={handlePublish}
               disabled={publishing}
-              className="mt-10 flex w-full items-center justify-center gap-2 rounded-xl bg-[#C9A84C] px-6 py-4 text-base font-bold text-[#0D1117] transition-transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60 sm:text-lg"
+              className="rub-btn-gold rub-btn-shimmer relative mt-10 flex w-full items-center justify-center gap-2 rounded-xl px-8 py-5 text-lg font-bold sm:text-xl"
             >
               {publishing && <Spinner />}
-              Publish My New Website — $39
-            </button>
+              🚀 Publish My New Website — $49.99
+            </motion.button>
 
-            <p className="mt-4 text-xs text-white/40">
-              30 day money back guarantee • Switch back anytime
+            <p className="mt-5 text-xs leading-relaxed text-white/45 sm:text-sm">
+              30 day money back guarantee • Switch back anytime • Backend never touched
             </p>
 
-            <div className="mt-8 flex flex-wrap justify-center gap-x-5 gap-y-2 text-xs text-white/50">
-              {TRUST_BADGES.map((badge) => (
-                <span key={badge} className="flex items-center gap-1">
-                  <span className="text-[#C9A84C]">✅</span> {badge}
-                </span>
-              ))}
-            </div>
+            <p className="mx-auto mt-6 max-w-md rounded-xl border border-[#C9A84C]/15 bg-[#C9A84C]/5 px-4 py-3 text-xs leading-relaxed text-white/55 sm:text-sm">
+              ❤️ 7% goes to old age homes, orphanages and children&apos;s education
+            </p>
           </motion.div>
         </section>
       </main>
+
+      {/* Sticky mobile publish bar */}
+      <div className="fixed right-0 bottom-0 left-0 z-50 border-t border-[#C9A84C]/30 bg-[#C9A84C] px-4 py-3 md:hidden">
+        <div className="mx-auto flex max-w-4xl items-center justify-between gap-3">
+          <p className="text-sm font-semibold text-[#080B10]">Your redesign is ready →</p>
+          <button
+            type="button"
+            onClick={handlePublish}
+            disabled={publishing}
+            className="shrink-0 rounded-lg bg-[#080B10] px-4 py-2.5 text-sm font-bold text-[#C9A84C]"
+          >
+            {publishing ? "..." : "Publish — $49.99"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
 
 function ResultsFallback() {
   return (
-    <div
-      className="flex min-h-screen items-center justify-center text-white/50"
-      style={{ backgroundColor: DARK }}
-    >
-      Loading results...
+    <div style={{ backgroundColor: BG }}>
+      <SkeletonPage />
     </div>
   );
 }
